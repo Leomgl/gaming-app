@@ -3,3 +3,14 @@ main = "worker.mjs"
 compatibility_date = "2026-11-10"
 workers_dev = true
 preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gaming-push-db"
+database_id = "cd514eff-0a5c-4679-8b5e-db0e08577db3"
+
+[vars]
+VAPID_PUBLIC_KEY = "BFywWPGSV7k2iezNlAH5Zdxd74vIllQuOGCQvL-VGFSNliprVx6z2FK416icBVieECPZ4GmQVSG4Fp2xF93P6B0"
+
+[triggers]
+crons = ["*/5 * * * *"]
