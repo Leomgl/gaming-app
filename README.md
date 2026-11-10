@@ -47,3 +47,14 @@ Trois rappels par saison, indépendants de l'achat : **mi-saison, 14 jours, 7 jo
 Le Worker Gaming gère ses API push sous /api/v1/gaming-push/ avec D1 EU gaming-push-db, cron 5 minutes, clé VAPID privée dans les secrets Cloudflare (non publiée dans Git). Aucun titre de jeu, coût, note ou numéro de saison n'est conservé côté serveur : seulement des dates, le type d'étape, des ID opaques et l'abonnement du navigateur.
 
 Les jetons de souscription sont stockés localement dans IndexedDB en dehors des exports JSON. Les fiches, préférences et jumelages NEXUS sont conservés. Un test de notification sur iPhone physique reste indispensable avant de considérer les push validés de bout en bout.
+
+## Gaming V0.6 — Jeux possédés mais désinstallés et jaquettes gratuites
+
+La notion de **possession** est distincte de l'installation : une fiche peut être « possédée / non installée », avec toutes ses saisons, DLC et notes conservés. Les états `uninstalled` et `owned` sont sauvegardés dans le JSON et restaurés dans les migrations sans écraser les anciens jeux. Les jeux non installés ne prennent pas de place sur les indicateurs SSD/M.2/USB.
+
+- Bibliothèque : filtres **Possédés**, **Non installés**, **À acheter**, et les filtres existants.
+- Carte et fiche : état de possession, bouton d'installation déclarative, action « marquer désinstallé » sans toucher aux fichiers PS5.
+- Jaquettes : recherche gratuite **Wikipédia FR/EN** grâce à l'API Wikimedia sans abonnement et sans clé. Vérification automatique uniquement lorsque le titre et sa description correspondent exactement au jeu vidéo ; sinon, **choix manuel** parmi les propositions. L'URL HTTPS manuelle existante reste prioritaire et peut être retirée.
+- Les images ne sont pas copiées sur le Worker ni dans D1 : seule une URL Wikimedia et un lien d'attribution sont enregistrés sur le téléphone. Certaines pages fournissent des logos/illustrations plutôt que des pochettes. Les droits d'images dépendent de la source.
+- Nouvelle règle CSP autorisant les deux API Wikimedia ; stockage, jumelage NEXUS LINK, rappels push Gaming et clés conservés inchangés.
+- Pas de coût supplémentaire : aucune nouvelle base, aucun secret, pas de requêtes d'API payantes.
