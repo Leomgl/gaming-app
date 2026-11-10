@@ -246,7 +246,7 @@ function buildCalendarIcs(items=data.items){
  for(const t of eligible){
   const start=calendarDateToUTC(t.date,t.reminderTime||'18:00');
   if(!start)continue;
-  const end=new Date(new Date(t.date+'T'+(/^([01]\\d|2[0-3]):[0-5]\\d$/.test(t.reminderTime||'')?t.reminderTime:'18:00')+':00').getTime()+3600000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const end=new Date(new Date(t.date+'T'+(/^([01]\d|2[0-3]):[0-5]\d$/.test(t.reminderTime||'')?t.reminderTime:'18:00')+':00').getTime()+3600000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
   const uidPart=encodeURIComponent(String(t.id)).replace(/%/g,'_');
   lines.push('BEGIN:VEVENT','UID:'+uidPart+'@gaming-personal',
    'DTSTAMP:'+stamp,'DTSTART:'+start,'DTEND:'+end,

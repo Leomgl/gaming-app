@@ -24,3 +24,14 @@ Aucun paiement, pass, rendez-vous ni jeu n'est importé dans NEXUS automatiqueme
 - **Pas de nouvelles permissions Cloudflare**, de Worker ou de D1. Aucun lien financier NEXUS actif, uniquement les messages de test déjà disponibles.
 
 **Test iPhone** : Réglages → Personnalisation ; modifier thème et accent ; créer un jeu PS5 sur USB, ouvrir sa fiche, déclarer un transfert M.2 ; ajouter un pass depuis la fiche ; fermer/réouvrir et vérifier les données et la connexion NEXUS LINK.
+
+## V0.4 — Passes, calendrier, rappels et iOS Safe Area
+
+- **Barre supérieure iPhone** : le header réserve `env(safe-area-inset-top)` sous l'heure, le réseau et la Dynamic Island, dans les 4 thèmes. Le fond est maintenu sous la barre de statut même au défilement.
+- **Passes de combat** : niveau actuel, niveau visé, progression, début et fin de saison, statut, prix, jeu associé ; progression rapide +1/+5, réversible dans l'éditeur.
+- **Calendrier Gaming** : navigation mois précédent/suivant, sélection d'un jour, échéances associées, distinction visuelle des dates confirmées ou provisoires.
+- **Rappels personnalisés par événement** : 7 jours, 1 jour, 2 heures, 45 et 15 minutes et autres délais en minutes ; heure locale libre. Le choix est conservé dans IndexedDB et les exports JSON.
+- **Export iCalendar (.ics)** : uniquement les dates explicitement confirmées, avec alarmes `VALARM` lorsqu'il y a des rappels. Compatible avec l'import dans une application de calendrier prenant en charge les alarmes iCalendar. **Pas de push Gaming autonome** : il faut importer le fichier dans un calendrier et autoriser les notifications de ce calendrier. Les informations importées ne se synchronisent pas automatiquement lors des modifications ultérieures.
+- **Rétrocompatibilité** : les items V0.2/V0.3 sans niveaux ni rappels continuent d'exister ; aucun effacement, nouveau stockage ou migration D1. NEXUS LINK reste limité aux messages de test.
+
+Parcours iPhone conseillé : vérifier la barre supérieure, enregistrer un pass Delta Force avec niveau et échéance confirmée, choisir les rappels, voir le calendrier, exporter le .ics, fermer/réouvrir, vérifier le jumelage NEXUS LINK.

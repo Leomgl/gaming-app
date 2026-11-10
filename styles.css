@@ -139,3 +139,81 @@ body{background:radial-gradient(ellipse at top right,var(--subtle-accent),transp
  .g3-storage-grid{grid-template-columns:1fr}
  .g3-detail .g3-game-row .item-end{flex-direction:column}
 }
+
+/* Gaming V0.4 — iOS safe areas: never draw the header over the status bar. */
+:root{--gaming-safe-top:env(safe-area-inset-top,0px)}
+.top{
+ height:calc(72px + var(--gaming-safe-top));
+ min-height:calc(72px + var(--gaming-safe-top));
+ padding-top:var(--gaming-safe-top);
+ background:var(--bg);
+ box-sizing:border-box;
+}
+body::before{
+ content:"";position:fixed;left:0;right:0;top:0;
+ height:var(--gaming-safe-top);background:var(--bg);
+ pointer-events:none;z-index:40;
+}
+.overlay{padding-top:max(8px,var(--gaming-safe-top))}
+.sheet{max-height:calc(100dvh - var(--gaming-safe-top) - 8px)}
+@media(max-width:700px){
+ .top{height:calc(65px + var(--gaming-safe-top));min-height:calc(65px + var(--gaming-safe-top));padding-top:var(--gaming-safe-top)}
+ .sheet{max-height:calc(100dvh - var(--gaming-safe-top) - 3px)}
+}
+.g4-main-tabs{margin-top:10px;margin-bottom:20px}
+.g4-main-tabs button{flex:1 1 auto}
+.g4-pass-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.g4-pass-card{border-radius:var(--card-radius);display:flex;flex-direction:column;gap:14px}
+.g4-pass-head{align-items:flex-start}
+.g4-pass-head h3{font-size:18px;line-height:1.2;letter-spacing:-.3px;overflow-wrap:anywhere;margin:6px 0 0}
+.g4-deadline{border-radius:30px;border:1px solid var(--line);font-size:10px;font-weight:850;padding:6px 9px;white-space:nowrap}
+.g4-deadline.g4-urgent{background:#ef8c831a;color:var(--red);border-color:var(--red)}
+.g4-deadline.g4-soon{background:#efc78020;color:var(--gold);border-color:var(--gold)}
+.g4-deadline.g4-past,.g4-deadline.g4-unknown{color:var(--muted)}
+.g4-pass-progress strong{font-size:12px}
+.g4-pass-progress .bars{height:12px;margin:10px 0}
+.g4-pass-meta{display:flex;flex-wrap:wrap;gap:7px}
+.g4-pass-meta span{background:var(--panel2);color:var(--muted);padding:5px 9px;border-radius:8px;font-size:10px}
+.g4-pass-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}
+.g4-pass-stats .card{min-height:115px}
+.g4-calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 13px}
+.g4-calendar-toolbar strong{font-size:15px}
+.g4-calendar-toolbar p{margin:3px 0 0}
+.g4-calendar-wrap{padding:15px}
+.g4-calendar-title{margin-bottom:15px}
+.g4-calendar-title h3{text-align:center;font-size:17px;text-transform:capitalize;margin:0;letter-spacing:-.4px}
+.g4-calendar-title button{font-size:24px;min-width:39px;height:35px;padding:0}
+.g4-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.g4-weekdays{margin-bottom:7px}
+.g4-weekdays strong{font-size:11px;text-align:center;color:var(--muted);font-weight:700}
+.g4-calendar-day,.g4-calendar-blank{height:56px;min-width:0;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+.g4-calendar-day{background:var(--panel2);border:1px solid transparent;font-size:12px;font-weight:750}
+.g4-calendar-day.selected{border-color:var(--accent);background:var(--subtle-accent);color:var(--accent)}
+.g4-calendar-day.today>span{border-bottom:2px solid var(--accent)}
+.g4-calendar-day i{background:var(--accent);width:6px;height:6px;border-radius:100%}
+.g4-calendar-day i.tentative{background:transparent;border:1px solid var(--muted)}
+.g4-calendar-day:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.g4-calendar-legend{display:flex;justify-content:flex-end;gap:15px;color:var(--muted);font-size:10px;margin:13px 0 8px}
+.g4-calendar-legend span:first-child{color:var(--accent)}
+.g4-calendar-selected{border-top:1px solid var(--line);margin-top:16px;padding-top:13px}
+.g4-calendar-selected h4{text-transform:capitalize;margin:0 0 13px;font-size:14px}
+.g4-calendar-selected .item{padding:12px 0}
+.g4-form-reminders{border:1px solid var(--line);background:var(--panel2);border-radius:13px;padding:15px;display:grid;gap:10px}
+.g4-form-reminders h3{margin:0;font-size:14px}
+.g4-reminder-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.g4-reminder-choice{display:flex!important;flex-direction:row;align-items:center;gap:7px!important;padding:9px;border:1px solid var(--line);background:var(--panel);border-radius:9px;font-size:11px!important;cursor:pointer}
+.g4-reminder-choice input{accent-color:var(--accent);height:18px;width:18px!important;flex:0 0 18px}
+.g4-pass-fields{display:grid;gap:11px;border-top:1px solid var(--line);padding-top:12px}
+.g4-pass-fields[hidden]{display:none!important}
+.g4-link-note{padding-top:18px}
+.g4-calendar-wrap,.g4-pass-card{overflow:hidden}
+@media(max-width:760px){
+ .g4-pass-list{grid-template-columns:1fr}
+ .g4-pass-head h3{font-size:17px}
+ .g4-calendar-day,.g4-calendar-blank{height:45px}
+ .g4-calendar-grid{gap:4px}
+ .g4-main-tabs button{padding:9px 8px;font-size:10px}
+ .g4-reminder-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .g4-calendar-wrap{padding:11px}
+ .g4-calendar-legend{flex-wrap:wrap}
+}
