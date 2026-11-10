@@ -246,7 +246,7 @@ function buildCalendarIcs(items=data.items){
  for(const t of eligible){
   const start=calendarDateToUTC(t.date,t.reminderTime||'18:00');
   if(!start)continue;
-  const end=new Date(new Date(t.date+'T'+(t.reminderTime||'18:00')+':00').getTime()+3600000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const end=new Date(new Date(t.date+'T'+(/^([01]\\d|2[0-3]):[0-5]\\d$/.test(t.reminderTime||'')?t.reminderTime:'18:00')+':00').getTime()+3600000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
   const uidPart=encodeURIComponent(String(t.id)).replace(/%/g,'_');
   lines.push('BEGIN:VEVENT','UID:'+uidPart+'@gaming-personal',
    'DTSTAMP:'+stamp,'DTSTART:'+start,'DTEND:'+end,
@@ -615,6 +615,12 @@ document.addEventListener('click',async e=>{
  if(act==='edit-storage')return storageForm(id);
  if(act==='filter-games'){gameFilter=btn.dataset.filter;render();return}
  if(act==='filter-items'){itemFilter=btn.dataset.filter;render();return}
+ if(act==='tracking-tab'){trackingTab=btn.dataset.tab;render();return}
+ if(act==='pass-level')return changePassLevel(id,Number(btn.dataset.delta));
+ if(act==='calendar-prev')return shiftMonth(-1);
+ if(act==='calendar-next')return shiftMonth(1);
+ if(act==='calendar-day'){calendarDay=btn.dataset.date;render();return}
+ if(act==='export-calendar')return downloadCalendar();
  if(act==='export')return exportBackup();
  if(act==='import')return $('import-file').click();
  if(act==='trash')return trash();
@@ -632,6 +638,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
  if(e.target.id==='g3-platform'){platformFilter=e.target.value;render();}
  if(e.target.id==='g3-sort'){gameSort=e.target.value;render();}
+ if(e.target.name==='kind'){const passFields=$('g4-pass-fields');if(passFields)passFields.hidden=e.target.value!=='pass';}
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(file)await importBackup(file)});
 $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal()});
