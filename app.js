@@ -467,6 +467,8 @@ function games(){
  const platforms=[...new Set(data.games.map(g=>g.platform).filter(Boolean))].sort();
  return `<div class="eyebrow">BIBLIOTHÈQUE · V0.5</div><div class="row"><h1 class="title">Mes jeux<span style="color:var(--accent)">.</span></h1><button class="btn small" data-action="new-game">＋ Ajouter</button></div>
  <p class="sub">${data.games.length} jeu(x) répertorié(s). Chaque fiche regroupe stockage, informations et suivis associés.</p>
+ <div class="g6-library-covers"><button class="btn secondary small" data-action="auto-covers">Trouver mes jaquettes</button>
+ <span class="hint">Recherche gratuite · jusqu’à six jeux par fois · association seulement si résultat fiable</span></div>
  <div class="g3-lib-tools"><label class="g3-search-label"><span class="sr-only">Rechercher un jeu</span><input id="game-search" value="${esc(query)}" placeholder="Rechercher titre, genre ou notes…" autocomplete="off"></label>
  <div class="g3-select-row"><label>Plateforme<select id="g3-platform"><option value="all">Toutes</option>${platforms.map(p=>`<option value="${esc(p)}" ${platformFilter===p?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
  <label>Trier par<select id="g3-sort"><option value="recent" ${gameSort==='recent'?'selected':''}>Ajout récent</option><option value="name" ${gameSort==='name'?'selected':''}>Nom A → Z</option><option value="favorite" ${gameSort==='favorite'?'selected':''}>Favoris</option><option value="size" ${gameSort==='size'?'selected':''}>Taille</option></select></label></div></div>
@@ -555,7 +557,7 @@ const selectField=(label,name,opts,current)=>`<label>${label}<select name="${nam
 const gameOptions=id=>[['','Aucun jeu'],...data.games.map(g=>[g.id,g.title])].map(([val,label])=>`<option value="${esc(val)}" ${val===id?'selected':''}>${esc(label)}</option>`).join('');
 
 const gamingCoversAdapter={
- game:id=>data.games.find(g=>g.id===id),
+ game:id=>data.games.find(g=>g.id===id),games:()=>data.games,
  modal,
  edit:id=>gameForm(id),
  async save(id,url,source,options={}){
@@ -570,7 +572,7 @@ const gamingCoversAdapter={
 };
 
 function gameForm(id,requestedStatus=''){
- const old=data.games.find(g=>g.id===id),g=old||{};
+ const old=data.games.find(g=>g.id===id),g=old||{},oldTitle=old?.title;
  modal(old?'Modifier un jeu':'Ajouter un jeu',`<form id="edit-form" class="form">
  ${field('Nom','title',g.title||'','required maxlength="120" placeholder="Ex. Delta Force"')}
  <div class="formgrid">${selectField('Plateforme','platform',[['PS5','PS5'],['PS4','PS4'],['PC','PC'],['Xbox','Xbox'],['Switch','Switch'],['other','Autre']],g.platform||'PS5')}
@@ -597,12 +599,15 @@ function gameForm(id,requestedStatus=''){
  const platform=select(v.platform,['PS5','PS4','PC','Xbox','Switch','other'],'PS5');
  if(platform==='PS5'&&v.storageId==='ps5-usb'&&status==='installed')status='stored';
  if(status==='stored'&&v.storageId!=='ps5-usb'&&platform==='PS5')status='installed';
+ if(onDevice({status})&&!data.storage.some(x=>x.id===v.storageId)){
+  toast('Indique un support de stockage pour un jeu installé ou stocké.');return;
+ }
  const record={...g,id:g.id||uid(),title:title.slice(0,120),platform,
  status,owned,storageId:onDevice({status})?v.storageId||'':'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),coverUrl:coverSafe(v.coverUrl),coverSource:coverSafe(v.coverUrl)===coverSafe(g.coverUrl)?g.coverSource||'':'',favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
  createdAt:g.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old)Object.assign(old,record);else data.games.push(record);
  await persist();closeModal();render();toast('Jeu enregistré.');
- if(!record.coverUrl&&(!old||old.title!==record.title))window.GamingCovers?.auto?.(record.id,record.title);
+ if(!record.coverUrl&&(!old||oldTitle!==record.title))window.GamingCovers?.auto?.(record.id,record.title);
  });
 }
 function itemForm(id,kind='pass',defaultGameId=''){
@@ -788,6 +793,14 @@ document.addEventListener('click',async e=>{
  if(act==='link-forget')return forgetLink();
  if(act==='view-game')return gameDetail(id);
  if(act==='find-cover')return window.GamingCovers?.find?.(id);
+ if(act==='auto-covers'){
+  if(!window.GamingCovers){toast('Module de jaquettes indisponible.');return}
+  btn.disabled=true;
+  try{const found=await window.GamingCovers.fillMissing();
+   toast(found.matched+' jaquette(s) trouvée(s) sur '+found.scanned+' recherche(s).');
+  }catch(err){alert(err.message||'Recherche indisponible.')}finally{btn.disabled=false}
+  return;
+ }
  if(act==='uninstall-game')return markGameUninstalled(id);
  if(act==='install-game')return gameForm(id,'installed');
  if(act==='toggle-favorite')return toggleFavorite(id);

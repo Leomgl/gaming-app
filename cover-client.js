@@ -90,5 +90,24 @@
    if(first&&g&&g.title===title&&!g.coverUrl)await adapter.save(gameId,first.image,first.source,{quiet:true});
   }catch(err){console.warn('Recherche automatique de jaquette',err?.message||'indisponible')}
  }
- window.GamingCovers=Object.freeze({attach(a){adapter=a},find,auto,suggestions});
+ 
+ async function fillMissing(){
+  if(!adapter?.games)throw Error('Bibliothèque indisponible.');
+  if(!navigator.onLine)throw Error('Connexion Internet nécessaire pour rechercher les images.');
+  const candidates=adapter.games().filter(g=>g.title&&!g.coverUrl).slice(0,6);
+  let matched=0;
+  for(const item of candidates){
+   try{
+    const found=await suggestions(item.title);
+    const exact=found.find(x=>x.confident);
+    const current=adapter.game(item.id);
+    if(exact&&current&&!current.coverUrl&&current.title===item.title){
+     await adapter.save(item.id,exact.image,exact.source,{quiet:true});matched++;
+    }
+   }catch(err){console.warn('Jaquette ignorée',item.title,err?.message||'réseau')}
+  }
+  return {matched,scanned:candidates.length,remaining:adapter.games().filter(g=>!g.coverUrl).length};
+ }
+
+ window.GamingCovers=Object.freeze({attach(a){adapter=a},find,auto,suggestions,fillMissing});
 })();
