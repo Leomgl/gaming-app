@@ -23,14 +23,18 @@ const select=(value,allowed,fallback)=>allowed.includes(value)?value:fallback;
 const relativeDays=date=>date?Math.round((new Date(date+'T12:00:00')-new Date(today()+'T12:00:00'))/86400000):null;
 const gameTitle=id=>data.games.find(g=>g.id===id)?.title||'Aucun jeu associé';
 const storageName=id=>data.storage.find(s=>s.id===id)?.label||'Sans emplacement';
-const gameStatus=g=>g.status==='wishlist'?'Souhait':g.status==='backlog'?'À jouer':g.platform==='PS5'&&g.storageId==='ps5-usb'?'Stocké · transfert requis':g.status==='stored'?'Stocké':'Installé';
+const isOwned=g=>g.owned===true||(g.owned==null&&g.status!=='wishlist');
+const gameStatus=g=>g.status==='wishlist'?'À acheter':g.status==='uninstalled'?'Non installé':g.status==='backlog'?'À jouer':g.platform==='PS5'&&g.storageId==='ps5-usb'?'Stocké · transfert requis':g.status==='stored'?'Stocké':'Installé';
+const onDevice=g=>['installed','stored'].includes(g.status);
+const needsInstall=g=>isOwned(g)&&!onDevice(g);
 const types={pass:'Pass',dlc:'DLC',release:'Nouveauté',event:'Événement',expense:'Dépense prévue'};
 let saveChain=Promise.resolve(),toastTimer;
 function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 function load(){return new Promise((resolve,reject)=>{const r=db.transaction(STORE,'readonly').objectStore(STORE).get('current');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 function normalize(raw){
  if(!raw||typeof raw!=='object'||!Array.isArray(raw.games)||!Array.isArray(raw.items))throw Error('Format Gaming invalide');
- const d=INITIAL();d.games=raw.games.filter(x=>x&&typeof x==='object'&&x.id&&x.title).slice(0,10000);
+ const d=INITIAL();d.games=raw.games.filter(x=>x&&typeof x==='object'&&x.id&&x.title).slice(0,10000)
+ .map(g=>({...g,owned:typeof g.owned==='boolean'?g.owned:g.status!=='wishlist'}));
  d.items=raw.items.filter(x=>x&&typeof x==='object'&&x.id&&x.title).slice(0,10000);
  d.trash=Array.isArray(raw.trash)?raw.trash.filter(x=>x&&x.id&&x.record).slice(0,10000):[];
  d.connections=Array.isArray(raw.connections)?raw.connections.filter(x=>x&&x.id&&x.seed&&x.sourceApp==='gaming').slice(0,5):[];
@@ -63,12 +67,12 @@ async function setAppearance(which,value){
  data.preferences={...(data.preferences||{theme:'night',accent:'lime'}),[which]:value};
  applyAppearance();await persist();render();toast('Apparence mise à jour.');
 }
-const gameIsOnUsb=g=>g.storageId==='ps5-usb'&&!['wishlist','backlog'].includes(g.status);
+const gameIsOnUsb=g=>g.storageId==='ps5-usb'&&onDevice(g);
 const linkedItems=id=>data.items.filter(item=>item.gameId===id);
 const gameFlag=g=>g.favorite?'★':'☆';
-const validGameStorage=(g,id)=>data.storage.some(s=>s.id===id)&&!['wishlist','backlog'].includes(g.status);
+const validGameStorage=(g,id)=>data.storage.some(s=>s.id===id)&&onDevice(g);
 function storageUsage(id){
- const games=data.games.filter(g=>g.storageId===id&&!['wishlist','backlog'].includes(g.status));
+ const games=data.games.filter(g=>g.storageId===id&&onDevice(g));
  const withSize=games.filter(g=>Number.isFinite(Number(g.sizeGB))&&g.sizeGB!==null&&g.sizeGB!=='');
  const knownGB=withSize.reduce((sum,g)=>sum+Number(g.sizeGB),0);
  return {games,knownGB,unknownCount:games.length-withSize.length};
@@ -81,11 +85,21 @@ async function moveGame(id,target){
  const previous=g.storageId;
  g.storageId=target;
  if(g.platform==='PS5'&&target==='ps5-usb')g.status='stored';
- else if(g.status==='stored')g.status='installed';
+ else g.status='installed';
+ g.owned=true;
  g.updatedAt=new Date().toISOString();
  await persist();render();gameDetail(id);
  toast(g.platform==='PS5'&&target==='ps5-usb'?'Jeu stocké sur USB : transfert requis pour jouer.':'Emplacement mis à jour.');
 }
+
+async function markGameUninstalled(id){
+ const g=data.games.find(x=>x.id===id);
+ if(!g||!isOwned(g)||!onDevice(g))return;
+ if(!confirm('Marquer « '+g.title+' » comme désinstallé ? Gaming ne supprimera aucun fichier de la console.'))return;
+ g.status='uninstalled';g.storageId='';g.owned=true;g.updatedAt=new Date().toISOString();
+ await persist();render();gameDetail(id);toast('Jeu classé dans « Possédés non installés ».');
+}
+
 function gameDetail(id){
  const g=data.games.find(x=>x.id===id);if(!g)return;
  const related=linkedItems(id),usage=storageUsage(g.storageId);
@@ -95,15 +109,20 @@ function gameDetail(id){
    <h3>${esc(g.title)}</h3><p>${esc(g.genre||'Genre non renseigné')}${g.favorite?' · ★ Favori':''}</p></div></div>
   <div class="g3-summary-grid">
    <div><small>État</small><strong>${esc(gameStatus(g))}</strong></div>
+   <div><small>Bibliothèque</small><strong>${isOwned(g)?'Possédé':'Non possédé'}</strong></div>
    <div><small>Taille</small><strong>${g.sizeGB==null?'Inconnue':Number(g.sizeGB).toLocaleString('fr-FR')+' Go'}</strong></div>
    <div><small>Emplacement</small><strong>${esc(storageName(g.storageId))}</strong></div>
    <div><small>Suivis liés</small><strong>${related.length}</strong></div>
   </div>
   ${!playable&&gameIsOnUsb(g)?'<div class="g3-warning">Jeu PS5 conservé sur USB. Pour le lancer, transfère-le sur le SSD interne ou M.2 compatible.</div>':''}
   ${g.notes?`<div class="g3-detail-note"><strong>Notes</strong><p>${esc(g.notes)}</p></div>`:''}
+  ${needsInstall(g)?`<div class="g3-detail-block"><div class="row"><h4>Jeu possédé · non installé</h4>
+     <button class="btn small" data-action="install-game" data-id="${esc(g.id)}">Renseigner l’installation</button></div>
+     <p class="hint">Tu possèdes ce jeu. Il est conservé dans ta bibliothèque sans compter dans le stockage.</p></div>`:''}
   ${validGameStorage(g,g.storageId)?`<div class="g3-detail-block"><h4>Déplacer le jeu</h4>
    <div class="g3-targets">${data.storage.map(loc=>`<button data-action="move-game" data-id="${esc(g.id)}" data-target="${esc(loc.id)}" ${loc.id===g.storageId?'disabled':''}>${esc(loc.label)}${loc.id===g.storageId?' ✓':''}</button>`).join('')}</div>
-   <p class="hint">Déplacement déclaré manuellement : cette action ne déplace pas physiquement les fichiers sur ta console.</p></div>`:''}
+   <p class="hint">Déplacement déclaré manuellement : cette action ne déplace pas physiquement les fichiers sur ta console.</p>
+   ${isOwned(g)?`<button class="btn secondary small" data-action="uninstall-game" data-id="${esc(g.id)}">Marquer comme désinstallé</button>`:''}</div>`:''}
   <div class="g3-detail-block"><div class="row"><h4>Passes, DLC et événements</h4><button class="btn secondary small" data-action="new-related-item" data-id="${esc(g.id)}">＋ Lier</button></div>
    ${related.length?related.map(itemRow).join(''):empty('Aucun suivi lié','Ajoute un pass, une sortie ou un événement à ce jeu.')}
   </div>
@@ -166,9 +185,11 @@ function gameTile(g){
    </button>
    <div class="g5-game-info"><div class="row"><button class="g5-game-title" data-action="view-game" data-id="${esc(g.id)}">${esc(g.title)}</button>
    <button class="g5-favorite" data-action="toggle-favorite" data-id="${esc(g.id)}" aria-label="${g.favorite?'Retirer des':'Ajouter aux'} favoris" aria-pressed="${!!g.favorite}">${g.favorite?'★':'☆'}</button></div>
-   <div class="g5-game-meta">${esc(gameStatus(g))} · ${esc(storageName(g.storageId))}</div>
+   <div class="g5-game-meta">${isOwned(g)?'✓ Possédé':'○ Non possédé'} · ${esc(gameStatus(g))}${onDevice(g)?' · '+esc(storageName(g.storageId)):''}</div>
    ${active?`<div class="g5-game-season">◷ Saison ${seasonNumber(active)??'—'} · ${esc(active.date?fmt(active.date):'fin inconnue')}</div>`:''}
-   <div class="g5-game-actions"><button class="btn secondary small" data-action="view-game" data-id="${esc(g.id)}">Fiche</button>
+   <div class="g5-game-actions">
+   ${needsInstall(g)?`<button class="btn secondary small" data-action="install-game" data-id="${esc(g.id)}">＋ Installer</button>`:''}
+   <button class="btn secondary small" data-action="view-game" data-id="${esc(g.id)}">Fiche</button>
    <button class="btn secondary small" data-action="new-related-item" data-id="${esc(g.id)}">＋ Pass / DLC</button></div>
    </div>
  </article>`;
@@ -411,25 +432,28 @@ function itemRow(t){
  <button class="red" data-action="delete-item" data-id="${esc(t.id)}">Supprimer</button></div></div>`;
 }
 function home(){
- const installed=data.games.filter(g=>['installed','stored'].includes(g.status)),active=data.items.filter(t=>t.kind==='pass'&&t.status==='active');
+ const installed=data.games.filter(onDevice),owned=data.games.filter(isOwned),notInstalled=owned.filter(g=>!onDevice(g)),active=data.items.filter(t=>t.kind==='pass'&&t.status==='active');
  const upcoming=data.items.filter(t=>t.date&&t.date>=today()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
  const planned=data.items.filter(t=>t.kind!=='pass'&&t.priceCents!=null&&!['paid','canceled'].includes(t.status));
  return `<div class="hero"><div class="eyebrow">TON UNIVERS · CENTRALISÉ</div><h1 class="title">Prêt à <span>jouer.</span></h1>
  <p>Bibliothèque, supports, passes, DLC, nouveautés et événements. Un cockpit perso, sans abonnement.</p>
  <div class="actions"><button class="btn" data-action="new-game">＋ Ajouter un jeu</button><button class="btn secondary" data-action="new-item" data-kind="pass">◷ Nouveau pass</button></div></div>
- <div class="grid" style="margin-top:13px"><div class="card"><span class="eyebrow">JEUX</span><div class="metric">${installed.length}</div><div class="muted">installés ou stockés</div></div>
+ <div class="grid" style="margin-top:13px"><div class="card"><span class="eyebrow">JEUX POSSÉDÉS</span><div class="metric">${owned.length}</div><div class="muted">${notInstalled.length} non installé(s)</div></div>
  <div class="card"><span class="eyebrow">PASSES</span><div class="metric">${active.length}</div><div class="muted">actifs</div></div>
  <div class="card"><span class="eyebrow">À PRÉVOIR</span><div class="metric" style="font-size:22px">${euro(planned.reduce((sum,t)=>sum+t.priceCents,0))}</div><div class="muted">non comptabilisés</div></div></div>
  ${section('Capture rapide','Ajoute ce que tu veux suivre.',`<div class="quick">
  <button data-action="new-game"><span>▦</span>Jeu</button><button data-action="new-item" data-kind="pass"><span>◷</span>Pass</button>
  <button data-action="new-item" data-kind="dlc"><span>✦</span>DLC</button><button data-action="new-item" data-kind="expense"><span>€</span>Dépense</button></div>`)}
  ${section('Prochainement','Les dates importantes, saisies par toi.',upcoming.length?`<div class="card">${upcoming.map(itemRow).join('')}</div>`:empty('Aucune échéance','Ajoute un pass ou une sortie avec une date.'),'<button class="btn secondary small" data-nav="tracking">Suivi →</button>')}
- ${section('Ma bibliothèque','Les derniers jeux enregistrés.',installed.length?`<div class="g5-game-grid">${installed.slice(-4).reverse().map(gameTile).join('')}</div>`:empty('Encore vide','Ajoute un jeu pour commencer.'),'<button class="btn secondary small" data-nav="games">Tous les jeux →</button>')}
+ ${section('Ma bibliothèque','Les derniers jeux enregistrés.',owned.length?`<div class="g5-game-grid">${owned.slice(-4).reverse().map(gameTile).join('')}</div>`:empty('Encore vide','Ajoute un jeu pour commencer.'),'<button class="btn secondary small" data-nav="games">Tous les jeux →</button>')}
  <p class="hint">Les jeux et tailles ne sont pas importés de la PlayStation. Les informations restent locales et ne sont pas transmises à NEXUS.</p>`;
 }
 function games(){
  const rows=data.games.filter(g=>{
-  const stateMatch=gameFilter==='all'||(gameFilter==='usb'?g.storageId==='ps5-usb':gameFilter==='favorites'?!!g.favorite:g.status===gameFilter);
+  const stateMatch=gameFilter==='all'||(gameFilter==='usb'?onDevice(g)&&g.storageId==='ps5-usb':
+ gameFilter==='favorites'?!!g.favorite:gameFilter==='owned'?isOwned(g):
+ gameFilter==='owned-uninstalled'?needsInstall(g):
+ gameFilter==='wishlist'?!isOwned(g):g.status===gameFilter);
   return stateMatch&&(platformFilter==='all'||g.platform===platformFilter)&&(storageFilter==='all'||g.storageId===storageFilter)&&[g.title||'',g.genre||'',g.notes||''].join(' ').toLowerCase().includes(query.toLowerCase());
  }).sort((a,b)=>{
   if(gameSort==='name')return String(a.title).localeCompare(String(b.title),'fr');
@@ -444,7 +468,7 @@ function games(){
  <div class="g3-select-row"><label>Plateforme<select id="g3-platform"><option value="all">Toutes</option>${platforms.map(p=>`<option value="${esc(p)}" ${platformFilter===p?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
  <label>Trier par<select id="g3-sort"><option value="recent" ${gameSort==='recent'?'selected':''}>Ajout récent</option><option value="name" ${gameSort==='name'?'selected':''}>Nom A → Z</option><option value="favorite" ${gameSort==='favorite'?'selected':''}>Favoris</option><option value="size" ${gameSort==='size'?'selected':''}>Taille</option></select></label></div></div>
  ${storageFilter!=='all'?`<div class="g3-storage-active-filter">Emplacement : ${esc(storageName(storageFilter))} <button data-action="clear-storage-filter">Retirer ✕</button></div>`:''}
- <div class="tabs">${[['all','Tous'],['installed','Installés'],['stored','Stockés'],['usb','USB'],['favorites','Favoris'],['wishlist','Souhaits'],['backlog','À jouer']].map(([id,label])=>`<button class="${gameFilter===id?'active':''}" data-action="filter-games" data-filter="${id}">${label}</button>`).join('')}</div>
+ <div class="tabs">${[['all','Tous'],['owned','Possédés'],['owned-uninstalled','Non installés'],['installed','Installés'],['stored','Stockés'],['usb','USB'],['favorites','Favoris'],['wishlist','À acheter'],['backlog','À jouer']].map(([id,label])=>`<button class="${gameFilter===id?'active':''}" data-action="filter-games" data-filter="${id}">${label}</button>`).join('')}</div>
  <div class="g5-game-grid">${rows.length?rows.map(gameTile).join(''):empty('Aucun jeu dans cette vue','Change tes filtres ou crée une nouvelle fiche.')}</div>
  <p class="hint g3-results">Résultats : ${rows.length} sur ${data.games.length} jeu(x). Les données sont locales et les fiches sont conservées pendant les mises à jour.</p>`;
 }
@@ -526,13 +550,15 @@ function render(){const pages={home,games,storage,tracking,settings};$('root').i
 const field=(label,name,value='',extra='')=>`<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;
 const selectField=(label,name,opts,current)=>`<label>${label}<select name="${name}">${opts.map(([v,text])=>`<option value="${esc(v)}" ${v===current?'selected':''}>${esc(text)}</option>`).join('')}</select></label>`;
 const gameOptions=id=>[['','Aucun jeu'],...data.games.map(g=>[g.id,g.title])].map(([val,label])=>`<option value="${esc(val)}" ${val===id?'selected':''}>${esc(label)}</option>`).join('');
-function gameForm(id){
+function gameForm(id,requestedStatus=''){
  const old=data.games.find(g=>g.id===id),g=old||{};
  modal(old?'Modifier un jeu':'Ajouter un jeu',`<form id="edit-form" class="form">
  ${field('Nom','title',g.title||'','required maxlength="120" placeholder="Ex. Delta Force"')}
  <div class="formgrid">${selectField('Plateforme','platform',[['PS5','PS5'],['PS4','PS4'],['PC','PC'],['Xbox','Xbox'],['Switch','Switch'],['other','Autre']],g.platform||'PS5')}
- ${selectField('État','status',[['installed','Installé'],['stored','Stocké'],['wishlist','Souhait'],['backlog','À jouer']],g.status||'installed')}</div>
- <div class="formgrid">${selectField('Support','storageId',[['','Aucun'],...data.storage.map(s=>[s.id,s.label])],g.storageId||'ps5-internal')}
+ ${selectField('Installation','status',[['installed','Installé / jouable'],['stored','Stocké (USB, archive)'],['uninstalled','Non installé'],['backlog','À jouer plus tard'],['wishlist','À acheter']],requestedStatus||g.status||'installed')}</div>
+ <label class="g5-owned-input"><input type="checkbox" name="owned" ${isOwned(g)?'checked':''}>
+    <span><strong>Je possède ce jeu</strong><small>Reste dans la bibliothèque même quand il est désinstallé.</small></span></label>
+ <div class="formgrid">${selectField('Support','storageId',[['','Aucun'],...data.storage.map(s=>[s.id,s.label])],g.storageId||(g.status==='uninstalled'||g.status==='wishlist'||g.status==='backlog'?'':'ps5-internal'))}
  ${field('Taille en Go (facultatif)','sizeGB',g.sizeGB??'','type="number" min="0" max="100000" step="0.1"')}</div>
  ${field('Genre (facultatif)','genre',g.genre||'','maxlength="50" placeholder="FPS, MMO, course, simulation…"')}
  ${field('Image de jaquette (URL HTTPS, optionnelle)','coverUrl',g.coverUrl||'','type="url" maxlength="500" placeholder="https://site.fr/jaquette.jpg"')}
@@ -545,11 +571,15 @@ function gameForm(id){
  $('edit-form').addEventListener('submit',async e=>{
  e.preventDefault();const v=Object.fromEntries(new FormData(e.target)),title=String(v.title||'').trim(),size=v.sizeGB===''?null:Number(v.sizeGB);
  if(!title||size!=null&&(!Number.isFinite(size)||size<0||size>100000)||!validDate(String(v.lastPlayedAt||''))){toast('Nom, taille ou date invalide.');return}
- let status=select(v.status,['installed','stored','wishlist','backlog'],'installed');
+ let status=select(v.status,['installed','stored','uninstalled','wishlist','backlog'],'installed');
+ let owned=v.owned==='on'||v.owned===true;
+ if(!owned&&status!=='wishlist')status='wishlist';
+ if(owned&&status==='wishlist')status='uninstalled';
  const platform=select(v.platform,['PS5','PS4','PC','Xbox','Switch','other'],'PS5');
  if(platform==='PS5'&&v.storageId==='ps5-usb'&&status==='installed')status='stored';
+ if(status==='stored'&&v.storageId!=='ps5-usb'&&platform==='PS5')status='installed';
  const record={...g,id:g.id||uid(),title:title.slice(0,120),platform,
- status,storageId:['wishlist','backlog'].includes(status)?'':v.storageId||'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),coverUrl:coverSafe(v.coverUrl),favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
+ status,owned,storageId:onDevice({status})?v.storageId||'':'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),coverUrl:coverSafe(v.coverUrl),favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
  createdAt:g.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old)Object.assign(old,record);else data.games.push(record);
  await persist();closeModal();render();toast('Jeu enregistré.');
@@ -737,6 +767,8 @@ document.addEventListener('click',async e=>{
  if(act==='link-test')return sendLinkTest();
  if(act==='link-forget')return forgetLink();
  if(act==='view-game')return gameDetail(id);
+ if(act==='uninstall-game')return markGameUninstalled(id);
+ if(act==='install-game')return gameForm(id,'installed');
  if(act==='toggle-favorite')return toggleFavorite(id);
  if(act==='move-game')return moveGame(id,btn.dataset.target);
  if(act==='new-related-item')return itemForm(null,'pass',id);
