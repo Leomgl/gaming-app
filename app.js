@@ -40,7 +40,7 @@ function normalize(raw){
  return d;
 }
 function storeSnapshot(snapshot){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(snapshot,'current');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
-function persist(){const snapshot=JSON.parse(JSON.stringify(data));saveChain=saveChain.catch(()=>{}).then(()=>storeSnapshot(snapshot));return saveChain.catch(e=>{toast('Échec de sauvegarde locale : export nécessaire.');throw e;});}
+function persist(){const snapshot=JSON.parse(JSON.stringify(data));saveChain=saveChain.catch(()=>{}).then(()=>storeSnapshot(snapshot));window.GamingPush?.queue?.();return saveChain.catch(e=>{toast('Échec de sauvegarde locale : export nécessaire.');throw e;});}
 function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3500);}
 function modal(title,body){$('modal-title').textContent=title;$('modal-body').innerHTML=body;$('overlay').hidden=false;}
 function closeModal(){$('overlay').hidden=true;$('modal-body').innerHTML='';}
@@ -338,6 +338,59 @@ function downloadCalendar(){
  toast(result.count+' événement(s) exporté(s) au calendrier.');
 }
 
+
+async function seasonPushJobs(){
+ const now=Math.floor(Date.now()/1000),jobs=[];
+ const hash=async str=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+ for(const p of data.items){
+  if(p.kind!=='pass'||!isConfirmed(p)||!isActiveItem(p))continue;
+  for(const m of seasonDates(p)){
+   const fireAt=Math.floor(new Date(m.date+'T10:00:00').getTime()/1000);
+   if(!Number.isFinite(fireAt)||fireAt<=now+20||fireAt>now+366*86400)continue;
+   jobs.push({id:await hash('gaming-season-v1:'+p.id+':'+m.id+':'+m.date+':'+fireAt),milestone:m.id,fireAt});
+  }
+ }
+ return jobs.sort((a,b)=>a.fireAt-b.fireAt).slice(0,250);
+}
+async function pushPanel(){
+ const push=window.GamingPush;
+ if(!push){toast('Actualise Gaming pour charger le module de notifications.');return}
+ let state;try{state=await push.read()}catch{toast('Stockage des notifications indisponible.');return}
+ const permission=push.available()?Notification.permission:'indisponible';
+ modal('Notifications Gaming',`<div class="g5-push-panel">
+  <div class="notice">Les véritables notifications iPhone peuvent te rappeler la mi-saison, J−14 et J−7 même quand Gaming est fermée. Cloudflare ne reçoit pas les noms des jeux ou leurs prix.</div>
+  <div class="g5-push-status">
+   <div>App installée <strong>${push.installed()?'Oui':'Non'}</strong></div>
+   <div>Autorisation <strong>${esc(permission)}</strong></div>
+   <div>Service <strong>${state?.enabled?'Actif':'Inactif'}</strong></div>
+   <div>Rappels <strong>${Number(state?.count)||0}</strong></div>
+  </div>
+  <p class="hint">Rappels à 10 h, uniquement pour les dates confirmées. Les réglages sont individuels pour chaque saison, pass acheté ou non.</p>
+  <div class="formactions">
+   <button id="g5-enable" type="button" class="btn">${state?.enabled?'Resynchroniser':'Activer les notifications'}</button>
+   ${state?.enabled?'<button id="g5-test" type="button" class="btn secondary">Tester</button><button id="g5-disable" type="button" class="btn danger">Désactiver</button>':''}
+  </div>
+  <p class="hint">Cloudflare vérifie toutes les 5 minutes environ. Modifications hors ligne : actualisation au prochain lancement connecté.</p>
+ </div>`);
+ $('g5-enable')?.addEventListener('click',async e=>{
+  e.currentTarget.disabled=true;
+  try{
+   if(state?.enabled){const count=await push.sync();toast(count+' rappel(s) synchronisé(s).')}
+   else{await push.enable();toast('Notifications Gaming activées.')}
+   await pushPanel();
+  }catch(err){alert(err.message);$('g5-enable').disabled=false}
+ });
+ $('g5-test')?.addEventListener('click',async e=>{
+  e.currentTarget.disabled=true;try{await push.test();toast('Notification test demandée.')}
+  catch(err){alert(err.message)}finally{e.currentTarget.disabled=false}
+ });
+ $('g5-disable')?.addEventListener('click',async()=>{
+  if(!confirm('Désactiver les notifications Gaming de cet iPhone ?'))return;
+  try{await push.disable();toast('Notifications désactivées.');await pushPanel()}
+  catch(err){alert(err.message)}
+ });
+}
+
 function itemRow(t){
  const dateLabel=deadline(t),isPass=t.kind==='pass',progress=isPass?passProgress(t):null;
  return `<div class="item g4-item"><span class="item-logo">${({pass:'◷',dlc:'✦',release:'★',event:'◇',expense:'€'})[t.kind]||'✦'}</span>
@@ -459,8 +512,8 @@ function settings(){
  <div class="setting"><div><strong>Importer un JSON</strong><p>Remplace les données locales après confirmation.</p></div><button class="btn secondary small" data-action="import">Import</button></div>
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
  ${section('Connexions','Les ponts entre applications viendront plus tard.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>${data.connections.length?'Gaming est jumelée à NEXUS. Seuls les tests de liaison sont actifs.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
- <div class="setting"><div><strong>Notifications push</strong><p>Non activées dans cette bêta.</p></div><span class="chip">À venir</span></div></div>`)}
- ${section('À propos','Gaming V0.3 · bibliothèque et personnalisation',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
+ <div class="setting"><div><strong>Notifications iPhone</strong><p>Mi-saison, J−14 et J−7, avec choix par pass.</p></div><button class="btn secondary small" data-action="push-settings">Configurer</button></div></div>`)}
+ ${section('À propos','Gaming V0.5 · cartes et saisons',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
 function render(){const pages={home,games,storage,tracking,settings};$('root').innerHTML=(pages[page]||home)();document.querySelectorAll('[data-nav]').forEach(b=>{b.classList.toggle('active',b.dataset.nav===page);b.setAttribute('aria-current',b.dataset.nav===page?'page':'false');});}
 const field=(label,name,value='',extra='')=>`<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;
@@ -697,6 +750,7 @@ document.addEventListener('click',async e=>{
  if(act==='calendar-next')return shiftMonth(1);
  if(act==='calendar-day'){calendarDay=btn.dataset.date;render();return}
  if(act==='export-calendar')return downloadCalendar();
+ if(act==='push-settings')return pushPanel();
  if(act==='export')return exportBackup();
  if(act==='import')return $('import-file').click();
  if(act==='trash')return trash();
@@ -722,6 +776,8 @@ document.addEventListener('change',e=>{
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(file)await importBackup(file)});
 $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal()});
-(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();render();
+window.addEventListener('online',()=>window.GamingPush?.queue?.());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)window.GamingPush?.queue?.()});
+(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();render();window.GamingPush?.attach?.(seasonPushJobs);
  if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }catch(e){$('root').innerHTML='<div class="empty"><strong>Stockage inaccessible</strong>Active le stockage local Safari et recharge la page.</div>';}})();
