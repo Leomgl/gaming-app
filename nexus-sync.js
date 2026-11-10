@@ -44,13 +44,13 @@ function build(){
   }else if(it.kind==='expense'){
    if(!['finished','paid'].includes(it.status))
     push(it.id,'future_spending','purchases',name+' · '+title,
-      {game:name,priceCents:price,details:'Achat gaming à prévoir.'});
+      {game:name,date,priceCents:price,details:'Achat gaming à prévoir.'});
   }else if(it.kind==='dlc'||it.kind==='release'){
    const permission=it.kind==='dlc'?'dlc_release':'game_release';
    if(date&&it.dateConfidence==='confirmed')
     push(it.id+':date',permission,'events',name+' · '+title,{game:name,date,details:'Date suivie dans Gaming.'});
    if(!['finished','paid'].includes(it.status))
-    push(it.id+':purchase',permission,'purchases',name+' · '+title,{game:name,priceCents:price,details:'Achat éventuel à prévoir.'});
+    push(it.id+':purchase',permission,'purchases',name+' · '+title,{game:name,date,priceCents:price,details:'Achat éventuel à prévoir.'});
   }else if(it.kind==='event'&&date&&it.dateConfidence==='confirmed')
    push(it.id,'gaming_event','events',name+' · '+title,{game:name,date,details:'Événement Gaming.'});
  }
