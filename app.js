@@ -112,6 +112,74 @@ function gameDetail(id){
  </div>`);
 }
 
+
+const SEASON_REMINDERS=[['mid','Mi-saison'],['14d','2 semaines avant la fin'],['7d','1 semaine avant la fin']];
+function seasonReminderFlags(pass){
+ // Old V0.4 passes have no flags; preserve old choices but use season defaults on new passes.
+ const source=Array.isArray(pass.seasonReminders)?pass.seasonReminders:['mid','14d','7d'];
+ return [...new Set(source.filter(x=>SEASON_REMINDERS.some(([id])=>id===x)))];
+}
+function seasonDates(pass){
+ if(!pass||pass.kind!=='pass'||!pass.startDate||!pass.date||!validDate(pass.startDate)||!validDate(pass.date)||pass.startDate>pass.date)return [];
+ const start=new Date(pass.startDate+'T12:00:00'),end=new Date(pass.date+'T12:00:00');
+ const dayMs=86400000;
+ const midpoint=new Date(start.getTime()+Math.floor((end.getTime()-start.getTime())/(2*dayMs))*dayMs);
+ const fmtDay=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+ const options=[
+  {id:'mid',title:'Mi-saison',date:fmtDay(midpoint)},
+  {id:'14d',title:'Fin de saison dans 2 semaines',date:fmtDay(new Date(end.getTime()-14*dayMs))},
+  {id:'7d',title:'Fin de saison dans 1 semaine',date:fmtDay(new Date(end.getTime()-7*dayMs))}
+ ];
+ const enabled=seasonReminderFlags(pass);
+ const seen=new Set();
+ return options.filter(x=>enabled.includes(x.id)&&x.date>=pass.startDate&&x.date<=pass.date&&!seen.has(x.date)&&seen.add(x.date))
+  .map(x=>({...x,time:'10:00'}));
+}
+function seasonProgress(pass){
+ if(!pass.startDate||!pass.date||!validDate(pass.startDate)||!validDate(pass.date)||pass.startDate>=pass.date)return null;
+ const start=new Date(pass.startDate+'T12:00:00').getTime(),end=new Date(pass.date+'T12:00:00').getTime();
+ const now=new Date(today()+'T12:00:00').getTime();
+ return Math.max(0,Math.min(100,Math.round((now-start)/(end-start)*100)));
+}
+const seasonNumber=pass=>Number.isSafeInteger(Number(pass.seasonNumber))&&Number(pass.seasonNumber)>0?Number(pass.seasonNumber):null;
+const ownershipLabel=pass=>pass.passOwned===true||pass.status==='paid'&&pass.passOwned!==false?'Pass acheté':'Pass non acheté';
+const coverSafe=value=>{
+ if(typeof value!=='string'||!value.trim())return '';
+ try{const url=new URL(value.trim());return url.protocol==='https:'&&url.username===''&&url.password===''&&url.href.length<=500?url.href:'';}catch{return '';}
+};
+function gamePoster(g,small=false){
+ const genre=(g.genre||'').toLowerCase();
+ const mood=/course|race|automobile|driving|simulation/.test(genre)?'speed':/fps|shooter|action|militaire|battle/.test(genre)?'tactical':/survie|survival|mmo|rpg|aventure/.test(genre)?'explore':'default';
+ const url=coverSafe(g.coverUrl);
+ return `<div class="g5-poster g5-${mood} ${small?'g5-poster-small':''}">
+  ${url?`<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:''}
+  <span class="g5-poster-glyph" aria-hidden="true">${esc((g.title||'G').slice(0,1).toUpperCase())}</span>
+  <span class="g5-poster-platform">${esc(g.platform)}</span>
+ </div>`;
+}
+function gameTile(g){
+ const passes=linkedItems(g.id).filter(i=>i.kind==='pass');
+ const active=passes.find(i=>i.status==='active'||i.status==='planned');
+ return `<article class="g5-game-card">
+   <button type="button" class="g5-game-cover-action" data-action="view-game" data-id="${esc(g.id)}" aria-label="Ouvrir la fiche de ${esc(g.title)}">
+    ${gamePoster(g)}
+   </button>
+   <div class="g5-game-info"><div class="row"><button class="g5-game-title" data-action="view-game" data-id="${esc(g.id)}">${esc(g.title)}</button>
+   <button class="g5-favorite" data-action="toggle-favorite" data-id="${esc(g.id)}" aria-label="${g.favorite?'Retirer des':'Ajouter aux'} favoris" aria-pressed="${!!g.favorite}">${g.favorite?'★':'☆'}</button></div>
+   <div class="g5-game-meta">${esc(gameStatus(g))} · ${esc(storageName(g.storageId))}</div>
+   ${active?`<div class="g5-game-season">◷ Saison ${seasonNumber(active)??'—'} · ${esc(active.date?fmt(active.date):'fin inconnue')}</div>`:''}
+   <div class="g5-game-actions"><button class="btn secondary small" data-action="view-game" data-id="${esc(g.id)}">Fiche</button>
+   <button class="btn secondary small" data-action="new-related-item" data-id="${esc(g.id)}">＋ Pass / DLC</button></div>
+   </div>
+ </article>`;
+}
+async function toggleFavorite(id){
+ const game=data.games.find(g=>g.id===id);
+ if(!game)return;
+ game.favorite=!game.favorite;game.updatedAt=new Date().toISOString();
+ await persist();render();toast(game.favorite?'Ajouté aux favoris.':'Favori retiré.');
+}
+
 function gameRow(g){
  const warning=g.platform==='PS5'&&gameIsOnUsb(g);
  const linked=linkedItems(g.id).length;
@@ -156,24 +224,22 @@ function deadline(t){
  return {label:'J-'+days,tone:'normal'};
 }
 function passCard(t){
- const progress=passProgress(t),due=deadline(t),reminders=reminderMinutes(t);
- return `<article class="g4-pass-card card">
-  <div class="row g4-pass-head"><div><span class="eyebrow">${esc(gameTitle(t.gameId))}</span>
+ const due=deadline(t),season=seasonNumber(t),pct=seasonProgress(t),steps=seasonDates(t);
+ const purchased=t.passOwned===true||t.passOwned==null&&t.status==='paid';
+ return `<article class="g4-pass-card card g5-season-card">
+  <div class="row g4-pass-head"><div><span class="eyebrow">${esc(gameTitle(t.gameId))} · ${season?'SAISON '+season:'SAISON NON RENSEIGNÉE'}</span>
     <h3>${esc(t.title)}</h3></div><span class="g4-deadline g4-${due.tone}">${esc(due.label)}</span></div>
-  <div class="g4-pass-progress">
-   <div class="row"><span class="muted">Progression du pass</span>
-   <strong>${progress?progress.level+' / '+progress.target+' niveaux':'Non renseignée'}</strong></div>
-   <div class="bars"><i style="width:${progress?.pct??0}%"></i></div>
-   <div class="row"><small class="muted">${progress?progress.pct+' % complété':'Définis le niveau actuel et l’objectif'}</small>
-   <span class="muted">${t.date?fmt(t.date):'Fin inconnue'}</span></div>
-  </div>
-  <div class="g4-pass-meta">${t.priceCents!=null?`<span>Prix : ${euro(t.priceCents)}</span>`:''}
-    ${t.startDate?`<span>Début : ${fmt(t.startDate)}</span>`:''}
-    ${reminders.length?`<span>${reminders.length} rappel(s) préparé(s)</span>`:''}</div>
-  <div class="g4-pass-actions"><button class="btn secondary small" data-action="pass-level" data-id="${esc(t.id)}" data-delta="1" ${!progress||progress.pct>=100?'disabled':''}>＋1 niv.</button>
-   <button class="btn secondary small" data-action="pass-level" data-id="${esc(t.id)}" data-delta="5" ${!progress||progress.pct>=100?'disabled':''}>＋5 niv.</button>
-   <button class="btn secondary small" data-action="edit-item" data-id="${esc(t.id)}">Modifier</button></div>
-  </article>`;
+  <div class="g5-season-states"><span class="g5-owned ${purchased?'is-owned':''}">${purchased?'✓ Pass acheté':'○ Pass non acheté'}</span>
+  <span class="g5-season-status">${esc(t.status==='finished'?'Terminée':t.status==='canceled'?'Annulée':t.status==='planned'?'À venir':'Suivie')}</span></div>
+  <div class="g4-pass-progress"><div class="row"><span class="muted">Avancement de la saison</span>
+    <strong>${pct==null?'Dates à compléter':pct+' %'}</strong></div>
+    <div class="bars"><i style="width:${pct??0}%"></i></div></div>
+  <div class="g5-season-dates"><div><small>Début</small><strong>${fmt(t.startDate)}</strong></div>
+  <div><small>Fin</small><strong>${fmt(t.date)}</strong></div></div>
+  <div class="g5-season-alerts"><span class="muted">Rappels activés :</span> ${steps.length?steps.map(m=>`<span>${esc(m.title)}</span>`).join(''):'Aucun'}</div>
+  <div class="g5-game-actions"><button class="btn secondary small" data-action="view-game" data-id="${esc(t.gameId)}" ${!data.games.some(g=>g.id===t.gameId)?'disabled':''}>Voir le jeu</button>
+  <button class="btn secondary small" data-action="edit-item" data-id="${esc(t.id)}">Modifier la saison</button></div>
+ </article>`;
 }
 async function changePassLevel(id,delta){
  const t=data.items.find(x=>x.id===id&&x.kind==='pass');if(!t)return;
@@ -298,7 +364,7 @@ function home(){
  <button data-action="new-game"><span>▦</span>Jeu</button><button data-action="new-item" data-kind="pass"><span>◷</span>Pass</button>
  <button data-action="new-item" data-kind="dlc"><span>✦</span>DLC</button><button data-action="new-item" data-kind="expense"><span>€</span>Dépense</button></div>`)}
  ${section('Prochainement','Les dates importantes, saisies par toi.',upcoming.length?`<div class="card">${upcoming.map(itemRow).join('')}</div>`:empty('Aucune échéance','Ajoute un pass ou une sortie avec une date.'),'<button class="btn secondary small" data-nav="tracking">Suivi →</button>')}
- ${section('Ma bibliothèque','Les derniers jeux enregistrés.',installed.length?`<div class="card">${installed.slice(-4).reverse().map(gameRow).join('')}</div>`:empty('Encore vide','Ajoute un jeu pour commencer.'),'<button class="btn secondary small" data-nav="games">Tous les jeux →</button>')}
+ ${section('Ma bibliothèque','Les derniers jeux enregistrés.',installed.length?`<div class="g5-game-grid">${installed.slice(-4).reverse().map(gameTile).join('')}</div>`:empty('Encore vide','Ajoute un jeu pour commencer.'),'<button class="btn secondary small" data-nav="games">Tous les jeux →</button>')}
  <p class="hint">Les jeux et tailles ne sont pas importés de la PlayStation. Les informations restent locales et ne sont pas transmises à NEXUS.</p>`;
 }
 function games(){
@@ -312,14 +378,14 @@ function games(){
   return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''));
  });
  const platforms=[...new Set(data.games.map(g=>g.platform).filter(Boolean))].sort();
- return `<div class="eyebrow">BIBLIOTHÈQUE · V0.3</div><div class="row"><h1 class="title">Mes jeux<span style="color:var(--accent)">.</span></h1><button class="btn small" data-action="new-game">＋ Ajouter</button></div>
+ return `<div class="eyebrow">BIBLIOTHÈQUE · V0.5</div><div class="row"><h1 class="title">Mes jeux<span style="color:var(--accent)">.</span></h1><button class="btn small" data-action="new-game">＋ Ajouter</button></div>
  <p class="sub">${data.games.length} jeu(x) répertorié(s). Chaque fiche regroupe stockage, informations et suivis associés.</p>
  <div class="g3-lib-tools"><label class="g3-search-label"><span class="sr-only">Rechercher un jeu</span><input id="game-search" value="${esc(query)}" placeholder="Rechercher titre, genre ou notes…" autocomplete="off"></label>
  <div class="g3-select-row"><label>Plateforme<select id="g3-platform"><option value="all">Toutes</option>${platforms.map(p=>`<option value="${esc(p)}" ${platformFilter===p?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
  <label>Trier par<select id="g3-sort"><option value="recent" ${gameSort==='recent'?'selected':''}>Ajout récent</option><option value="name" ${gameSort==='name'?'selected':''}>Nom A → Z</option><option value="favorite" ${gameSort==='favorite'?'selected':''}>Favoris</option><option value="size" ${gameSort==='size'?'selected':''}>Taille</option></select></label></div></div>
  ${storageFilter!=='all'?`<div class="g3-storage-active-filter">Emplacement : ${esc(storageName(storageFilter))} <button data-action="clear-storage-filter">Retirer ✕</button></div>`:''}
  <div class="tabs">${[['all','Tous'],['installed','Installés'],['stored','Stockés'],['usb','USB'],['favorites','Favoris'],['wishlist','Souhaits'],['backlog','À jouer']].map(([id,label])=>`<button class="${gameFilter===id?'active':''}" data-action="filter-games" data-filter="${id}">${label}</button>`).join('')}</div>
- <div class="card">${rows.length?rows.map(gameRow).join(''):empty('Aucun jeu dans cette vue','Change tes filtres ou crée une nouvelle fiche.')}</div>
+ <div class="g5-game-grid">${rows.length?rows.map(gameTile).join(''):empty('Aucun jeu dans cette vue','Change tes filtres ou crée une nouvelle fiche.')}</div>
  <p class="hint g3-results">Résultats : ${rows.length} sur ${data.games.length} jeu(x). Les données sont locales et les fiches sont conservées pendant les mises à jour.</p>`;
 }
 function storage(){
@@ -601,6 +667,7 @@ document.addEventListener('click',async e=>{
  if(act==='link-test')return sendLinkTest();
  if(act==='link-forget')return forgetLink();
  if(act==='view-game')return gameDetail(id);
+ if(act==='toggle-favorite')return toggleFavorite(id);
  if(act==='move-game')return moveGame(id,btn.dataset.target);
  if(act==='new-related-item')return itemForm(null,'pass',id);
  if(act==='filter-storage'){storageFilter=btn.dataset.id;gameFilter='all';platformFilter='all';go('games');return}
