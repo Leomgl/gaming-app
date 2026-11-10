@@ -91,7 +91,7 @@ function gameDetail(id){
  const related=linkedItems(id),usage=storageUsage(g.storageId);
  const playable=g.platform!=='PS5'||g.storageId!=='ps5-usb';
  modal('Fiche jeu · '+g.title,`<div class="g3-detail">
-  <div class="g3-cover"><span>${esc(g.title.slice(0,1).toUpperCase())}</span><div><small>${esc(g.platform)}</small>
+  <div class="g3-cover g5-detail-cover">${gamePoster(g,true)}<div><small>${esc(g.platform)}</small>
    <h3>${esc(g.title)}</h3><p>${esc(g.genre||'Genre non renseigné')}${g.favorite?' · ★ Favori':''}</p></div></div>
   <div class="g3-summary-grid">
    <div><small>État</small><strong>${esc(gameStatus(g))}</strong></div>
@@ -152,7 +152,7 @@ function gamePoster(g,small=false){
  const mood=/course|race|automobile|driving|simulation/.test(genre)?'speed':/fps|shooter|action|militaire|battle/.test(genre)?'tactical':/survie|survival|mmo|rpg|aventure/.test(genre)?'explore':'default';
  const url=coverSafe(g.coverUrl);
  return `<div class="g5-poster g5-${mood} ${small?'g5-poster-small':''}">
-  ${url?`<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">`:''}
+  ${url?`<img src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}
   <span class="g5-poster-glyph" aria-hidden="true">${esc((g.title||'G').slice(0,1).toUpperCase())}</span>
   <span class="g5-poster-platform">${esc(g.platform)}</span>
  </div>`;
@@ -353,7 +353,7 @@ function itemRow(t){
 function home(){
  const installed=data.games.filter(g=>['installed','stored'].includes(g.status)),active=data.items.filter(t=>t.kind==='pass'&&t.status==='active');
  const upcoming=data.items.filter(t=>t.date&&t.date>=today()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
- const planned=data.items.filter(t=>t.priceCents!=null&&!['paid','canceled'].includes(t.status));
+ const planned=data.items.filter(t=>t.kind!=='pass'&&t.priceCents!=null&&!['paid','canceled'].includes(t.status));
  return `<div class="hero"><div class="eyebrow">TON UNIVERS · CENTRALISÉ</div><h1 class="title">Prêt à <span>jouer.</span></h1>
  <p>Bibliothèque, supports, passes, DLC, nouveautés et événements. Un cockpit perso, sans abonnement.</p>
  <div class="actions"><button class="btn" data-action="new-game">＋ Ajouter un jeu</button><button class="btn secondary" data-action="new-item" data-kind="pass">◷ Nouveau pass</button></div></div>
@@ -415,7 +415,7 @@ function storage(){
 function tracking(){
  const rows=data.items.filter(t=>itemFilter==='all'||t.kind===itemFilter).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
  const passes=data.items.filter(t=>t.kind==='pass').sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
- const planned=data.items.filter(t=>t.priceCents!=null&&!['paid','canceled'].includes(t.status));
+ const planned=data.items.filter(t=>t.kind!=='pass'&&t.priceCents!=null&&!['paid','canceled'].includes(t.status));
  const due7=data.items.filter(t=>isConfirmed(t)&&isActiveItem(t)&&relativeDays(t.date)>=0&&relativeDays(t.date)<=7).length;
  let content='';
  if(trackingTab==='passes'){
@@ -423,8 +423,8 @@ function tracking(){
     <div class="card"><span class="eyebrow">PASSES ACTIFS</span><div class="metric">${passes.filter(t=>t.status==='active').length}</div><span class="muted">en cours</span></div>
     <div class="card"><span class="eyebrow">ÉCHÉANCES 7 J</span><div class="metric">${due7}</div><span class="muted">dates confirmées</span></div>
     <div class="card"><span class="eyebrow">À PRÉVOIR</span><div class="metric" style="font-size:22px">${euro(planned.reduce((n,t)=>n+t.priceCents,0))}</div><span class="muted">hors dépenses réelles</span></div>
-   </div>${section('Mes passes de combat','Progression et échéances au même endroit.',
-    passes.length?`<div class="g4-pass-list">${passes.map(passCard).join('')}</div>`:empty('Aucun pass suivi','Ajoute un pass, puis indique son niveau actuel et sa date de fin.'),
+   </div>${section('Mes saisons et passes','Dates, numéros de saison et rappels, que tu aies acheté le pass ou non.',
+    passes.length?`<div class="g4-pass-list">${passes.map(passCard).join('')}</div>`:empty('Aucune saison suivie','Ajoute une saison, même sans acheter son pass de combat.'),
     '<button class="btn secondary small" data-action="new-item" data-kind="pass">＋ Pass</button>')}`;
  }else if(trackingTab==='calendar'){
    content=`<div class="g4-calendar-toolbar"><div><strong>Calendrier Gaming</strong><p class="muted">Sélectionne un jour pour voir ses échéances.</p></div>
@@ -494,76 +494,84 @@ function gameForm(id){
  });
 }
 function itemForm(id,kind='pass',defaultGameId=''){
- const old=data.items.find(i=>i.id===id),t=old||{};
- const chosenKind=t.kind||kind;
- const extras=reminderMinutes(t).filter(m=>!REMINDER_PRESETS.some(p=>p[0]===m)).join(', ');
+ const old=data.items.find(i=>i.id===id),t=old||{},chosenKind=t.kind||kind;
+ const isPass=chosenKind==='pass';
+ const status=t.status==='paid'&&isPass?'active':t.status||'active';
+ const oldMinutes=reminderMinutes(t);
+ const extras=oldMinutes.filter(m=>!REMINDER_PRESETS.some(p=>p[0]===m)).join(', ');
+ const owned=!!(t.passOwned===true||t.passOwned==null&&t.status==='paid');
+ const reminderFlags=seasonReminderFlags(t);
  modal(old?'Modifier un suivi':'Ajouter un suivi',`<form id="edit-form" class="form">
- ${selectField('Type','kind',[['pass','Pass de combat'],['dlc','DLC'],['release','Nouveauté'],['event','Événement'],['expense','Dépense prévue']],chosenKind)}
- ${field('Libellé','title',t.title||'','required maxlength="140" placeholder="Ex. Passe Delta Force"')}
+ ${selectField('Type','kind',[['pass','Pass de combat / saison'],['dlc','DLC'],['release','Nouveauté'],['event','Événement'],['expense','Dépense prévue']],chosenKind)}
+ ${field('Nom du suivi','title',t.title||'','required maxlength="140" placeholder="Ex. Passe de combat"')}
  <label>Jeu associé<select name="gameId">${gameOptions(t.gameId||defaultGameId||'')}</select></label>
- <div class="formgrid">
-  ${field('Date importante (fin de pass / sortie)','date',t.date||'','type="date"')}
-  ${selectField('Statut','status',[['planned','À prévoir'],['active','Actif'],['paid','Payé'],['finished','Terminé'],['canceled','Annulé']],t.status||'planned')}
- </div>
- <div class="formgrid">
-  ${field('Prix (€), facultatif','price',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 6,99"')}
-  ${selectField('Fiabilité de la date','dateConfidence',[['unknown','À confirmer'],['tentative','Provisoire'],['confirmed','Confirmée']],t.dateConfidence||'unknown')}
- </div>
- <div id="g4-pass-fields" class="g4-pass-fields" ${chosenKind==='pass'?'':'hidden'}>
+ <div id="g5-pass-editor" ${isPass?'':'hidden'} class="g5-pass-editor">
+  ${field('Numéro de saison','seasonNumber',t.seasonNumber??'','type="number" min="1" max="10000" step="1" placeholder="Ex. 12 pour Delta Force"')}
   <div class="formgrid">
-   ${field('Début de saison','startDate',t.startDate||'','type="date"')}
-   ${field('Niveau actuel','currentLevel',t.currentLevel??'','type="number" min="0" max="10000" placeholder="Ex. 12"')}
+    ${field('Début de saison','startDate',t.startDate||'','type="date"')}
+    ${field('Fin de saison','date',t.date||'','type="date"')}
   </div>
-  ${field('Niveau final / objectif','targetLevel',t.targetLevel??'','type="number" min="1" max="10000" placeholder="Ex. 50"')}
-  <p class="hint">Les niveaux sont facultatifs. La date importante correspond à la fin du pass.</p>
+  <label class="g5-ownership-control"><input type="checkbox" name="passOwned" ${owned?'checked':''}>
+    <span><strong>J’ai acheté le pass</strong><small>Décoché = saison suivie sans achat (Fortnite, etc.)</small></span></label>
+  ${selectField('État de la saison','statusPass',[['planned','À venir'],['active','En cours'],['finished','Terminée'],['canceled','Annulée']],status)}
+  ${field('Prix du pass, facultatif (€)','pricePass',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 6,99"')}
+  ${selectField('Fiabilité des dates','dateConfidencePass',[['confirmed','Confirmées'],['tentative','Provisoires'],['unknown','À confirmer']],t.dateConfidence||'confirmed')}
+  <div class="g5-season-options"><strong>Notifications de saison</strong>
+   <p class="hint">Un rappel à 10 h, à mi-saison puis à 2 semaines et 1 semaine avant la fin. Les alertes sont facultatives et indépendantes de l’achat du pass.</p>
+   ${SEASON_REMINDERS.map(([code,label])=>`<label class="g4-reminder-choice"><input type="checkbox" name="seasonReminder" value="${code}" ${reminderFlags.includes(code)?'checked':''}><span>${label}</span></label>`).join('')}
+  </div>
  </div>
- <div class="g4-form-reminders">
-  <h3>Rappels personnalisés</h3>
-  <p class="hint">Ils seront intégrés à un export .ics de calendrier. Aucune notification push Gaming autonome ne part directement pour le moment.</p>
-  ${field('Heure de l’événement (locale)','reminderTime',t.reminderTime||'18:00','type="time"')}
-  <div class="g4-reminder-options">${REMINDER_PRESETS.map(([minutes,label])=>`<label class="g4-reminder-choice">
-   <input type="checkbox" name="reminderPreset" value="${minutes}" ${reminderMinutes(t).includes(minutes)?'checked':''}><span>${label}</span></label>`).join('')}</div>
-  ${field('Autres rappels en minutes, séparés par virgules','customReminders',extras,'placeholder="Ex. 30, 90"')}
+ <div id="g5-other-editor" ${isPass?'hidden':''} class="g5-other-editor">
+  <div class="formgrid">
+    ${field('Date importante','otherDate',t.date||'','type="date"')}
+    ${selectField('État','statusOther',[['planned','À prévoir'],['active','Actif'],['paid','Payé'],['finished','Terminé'],['canceled','Annulé']],t.status||'planned')}
+  </div>
+  ${field('Montant indicatif (€)','priceOther',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 19,99"')}
+  ${selectField('Fiabilité de la date','dateConfidenceOther',[['confirmed','Confirmée'],['tentative','Provisoire'],['unknown','À confirmer']],t.dateConfidence||'unknown')}
+  <div class="g4-form-reminders"><h3>Rappels de cet événement</h3>
+   ${field('Heure locale','reminderTime',t.reminderTime||'18:00','type="time"')}
+   <div class="g4-reminder-options">${REMINDER_PRESETS.map(([minutes,label])=>`<label class="g4-reminder-choice">
+    <input type="checkbox" name="reminderPreset" value="${minutes}" ${oldMinutes.includes(minutes)?'checked':''}><span>${label}</span></label>`).join('')}</div>
+   ${field('Autres rappels en minutes (virgules)','customReminders',extras,'placeholder="Ex. 30, 90"')}</div>
  </div>
- ${field('Lien / source (optionnel)','sourceUrl',t.sourceUrl||'','type="url" maxlength="500" placeholder="https://..."')}
+ ${field('Lien / source, facultatif','sourceUrl',t.sourceUrl||'','type="url" maxlength="500" placeholder="https://..."')}
  <label>Notes<textarea name="notes" maxlength="2000">${esc(t.notes||'')}</textarea></label>
- <p class="hint">Aucune dépense ni date n'est transmise à NEXUS automatiquement.</p>
+ <p class="hint">« Pass acheté » est une information de suivi : Gaming ne crée aucune dépense NEXUS automatiquement.</p>
  <div class="formactions"><button type="button" class="btn secondary" data-action="close">Annuler</button>
  <button type="submit" class="btn">Enregistrer</button></div></form>`);
  $('edit-form').addEventListener('submit',async e=>{
   e.preventDefault();
   const fd=new FormData(e.target),v=Object.fromEntries(fd);
-  const title=String(v.title||'').trim(),date=String(v.date||'');
-  const itemKind=select(v.kind,['pass','dlc','release','event','expense'],'event');
-  const amount=euros(v.price),startDate=String(v.startDate||'');
-  const currentLevel=v.currentLevel===''||v.currentLevel==null?null:Number(v.currentLevel);
-  const targetLevel=v.targetLevel===''||v.targetLevel==null?null:Number(v.targetLevel);
-  const reminderTime=String(v.reminderTime||'18:00');
-  const extras=String(v.customReminders||'').trim();
-  const custom=extras?extras.split(/[,;\s]+/).filter(Boolean).map(Number):[];
-  const reminderValues=[...new Set([...fd.getAll('reminderPreset').map(Number),...custom])];
-  const levelsInvalid=itemKind==='pass'&&(
-   (currentLevel!==null&&(!Number.isSafeInteger(currentLevel)||currentLevel<0||currentLevel>10000))||
-   (targetLevel!==null&&(!Number.isSafeInteger(targetLevel)||targetLevel<1||targetLevel>10000))||
-   (currentLevel!==null&&targetLevel!==null&&currentLevel>targetLevel)
-  );
+  const itemKind=select(v.kind,['pass','dlc','release','event','expense'],'event'),isPass=itemKind==='pass';
+  const title=String(v.title||'').trim(),startDate=isPass?String(v.startDate||''):'';
+  const date=String(isPass?v.date||'':v.otherDate||''),amount=euros(isPass?v.pricePass:v.priceOther);
+  const number=v.seasonNumber===''||v.seasonNumber==null?null:Number(v.seasonNumber);
+  const status=isPass?select(v.statusPass,['planned','active','finished','canceled'],'active'):select(v.statusOther,['planned','active','paid','finished','canceled'],'planned');
+  const dateConfidence=isPass?select(v.dateConfidencePass,['confirmed','tentative','unknown'],'confirmed'):
+   select(v.dateConfidenceOther,['confirmed','tentative','unknown'],'unknown');
+  const seasonReminders=isPass?[...new Set(fd.getAll('seasonReminder'))].filter(x=>SEASON_REMINDERS.some(([code])=>code===x)):[];
+  const reminderTime=isPass?'10:00':String(v.reminderTime||'18:00');
+  const customSource=isPass?'':String(v.customReminders||'').trim();
+  const custom=customSource?customSource.split(/[,;\s]+/).filter(Boolean).map(Number):[];
+  const otherReminders=isPass?[]:[...new Set([...fd.getAll('reminderPreset').map(Number),...custom])];
   if(!title||Number.isNaN(amount)||!validDate(date)||!validDate(startDate)||
-    (itemKind==='pass'&&date&&startDate&&startDate>date)||
-    !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)||
-    levelsInvalid||reminderValues.length>10||reminderValues.some(n=>!Number.isSafeInteger(n)||n<0||n>40320)){
-   toast('Vérifie date, niveaux et rappels (0 à 40 320 minutes).');return;
+   isPass&&(number!==null&&(!Number.isSafeInteger(number)||number<1||number>10000)||
+    !startDate||!date||startDate>=date)||
+   !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)||
+   otherReminders.length>10||otherReminders.some(n=>!Number.isSafeInteger(n)||n<0||n>40320)){
+   toast(isPass?'Renseigne un début et une fin de saison valides.':'Vérifie les dates et les rappels.');return;
   }
-  const rec={...t,id:t.id||uid(),kind:itemKind,title:title.slice(0,140),
-   gameId:data.games.some(g=>g.id===v.gameId)?v.gameId:'',date,
-   status:select(v.status,['planned','active','paid','finished','canceled'],'planned'),
-   priceCents:amount,dateConfidence:select(v.dateConfidence,['unknown','tentative','confirmed'],'unknown'),
-   startDate:itemKind==='pass'?startDate:'',currentLevel:itemKind==='pass'?currentLevel:null,
-   targetLevel:itemKind==='pass'?targetLevel:null,reminderTime,
-   reminderMinutes:reminderValues.sort((a,b)=>b-a),
+  const record={...t,id:t.id||uid(),kind:itemKind,title:title.slice(0,140),
+   gameId:data.games.some(g=>g.id===v.gameId)?v.gameId:'',date,status,priceCents:amount,dateConfidence,
+   startDate,seasonNumber:isPass?number:null,
+   passOwned:isPass?fd.get('passOwned')==='on':false,
+   seasonReminders:isPass?seasonReminders:[],
+   reminderTime,reminderMinutes:isPass?[]:otherReminders.sort((a,b)=>b-a),
    sourceUrl:String(v.sourceUrl||'').trim().slice(0,500),notes:String(v.notes||'').slice(0,2000),
    createdAt:t.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
-  if(old)Object.assign(old,rec);else data.items.push(rec);
-  await persist();closeModal();render();toast('Suivi enregistré.');
+  // Old levels from previous app versions remain in legacy records, but are no longer shown/required.
+  if(old)Object.assign(old,record);else data.items.push(record);
+  await persist();closeModal();render();toast(isPass?'Saison enregistrée.':'Suivi enregistré.');
  });
 }
 function storageForm(id){
@@ -706,7 +714,11 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
  if(e.target.id==='g3-platform'){platformFilter=e.target.value;render();}
  if(e.target.id==='g3-sort'){gameSort=e.target.value;render();}
- if(e.target.name==='kind'){const passFields=$('g4-pass-fields');if(passFields)passFields.hidden=e.target.value!=='pass';}
+ if(e.target.name==='kind'){
+ const pass=$('g5-pass-editor'),other=$('g5-other-editor');
+ if(pass)pass.hidden=e.target.value!=='pass';
+ if(other)other.hidden=e.target.value==='pass';
+}
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(file)await importBackup(file)});
 $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal()});
