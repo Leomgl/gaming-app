@@ -1,7 +1,7 @@
 /* NEXUS LINK v1 — browser-side E2EE protocol. No secret is ever sent to Cloudflare. */
 'use strict';
 (() => {
- const API='https://nexus-link-api.q9pfwtztsc.workers.dev';
+ const API='https://nexus-app-api.q9pfwtztsc.workers.dev';
  const enc=new TextEncoder(),dec=new TextDecoder();
  const toBytes=s=>enc.encode(s);
  const b64=bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
