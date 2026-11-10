@@ -171,20 +171,28 @@ function games(){
  <p class="hint g3-results">Résultats : ${rows.length} sur ${data.games.length} jeu(x). Les données sont locales et les fiches sont conservées pendant les mises à jour.</p>`;
 }
 function storage(){
+ const active=data.games.filter(g=>g.storageId&&!['wishlist','backlog'].includes(g.status));
+ const known=active.reduce((n,g)=>n+(g.sizeGB==null?0:Number(g.sizeGB)||0),0);
+ const missing=active.filter(g=>g.sizeGB==null).length;
  return `<div class="eyebrow">CONSOLE · SUPPORTS</div><h1 class="title">Stockage<span style="color:var(--accent)">.</span></h1>
- <p class="sub">Capacités et tailles saisies à la main. Les chiffres ne représentent pas les données système de la PS5.</p>
- <div class="grid">${data.storage.map(s=>{
- const games=data.games.filter(g=>g.storageId===s.id&&!['wishlist','backlog'].includes(g.status));
- const used=games.reduce((n,g)=>n+(Number(g.sizeGB)||0),0),cap=Number(s.capacityGB)||0;
- return `<div class="card"><span class="eyebrow">${s.type==='usb'?'EXTERNE':s.type==='m2'?'EXTENSION':'CONSOLE'}</span>
- <h2 style="font-size:17px;margin:10px 0">${esc(s.label)}</h2><div class="metric">${used.toLocaleString('fr-FR',{maximumFractionDigits:1})} <small style="font-size:12px">Go</small></div>
- <div class="bars"><i style="width:${cap?Math.min(100,Math.round(used/cap*100)):0}%"></i></div>
- <div class="muted">${games.length} jeu(x) · ${cap?cap+' Go configurés':'Capacité inconnue'}</div>
- ${s.type==='usb'?'<p class="warning">PS5 sur USB : non jouable directement.</p>':''}
- <div class="actions"><button class="btn secondary small" data-action="edit-storage" data-id="${esc(s.id)}">Capacité ✎</button></div></div>`;
+ <p class="sub">Un aperçu basé sur tes fiches, pas sur une lecture automatique de la PS5.</p>
+ <div class="g3-storage-total card"><div><span class="eyebrow">JEUX RÉFÉRENCÉS</span><div class="metric">${known.toLocaleString('fr-FR',{maximumFractionDigits:1})} <small>Go connus</small></div>
+ <span class="muted">${active.length} jeux · ${missing} jeu(x) sans taille renseignée</span></div><span class="g3-storage-emblem" aria-hidden="true">▤</span></div>
+ <div class="grid g3-storage-grid">${data.storage.map(loc=>{
+  const {games,knownGB,unknownCount}=storageUsage(loc.id),cap=loc.capacityGB==null?null:Number(loc.capacityGB);
+  const ratio=cap&&cap>0?Math.min(100,Math.round(100*knownGB/cap)):0;
+  return `<section class="card g3-storage-card"><span class="eyebrow">${loc.type==='usb'?'EXTERNE':loc.type==='m2'?'EXTENSION':'CONSOLE'}</span>
+  <h2>${esc(loc.label)}</h2><div class="metric">${knownGB.toLocaleString('fr-FR',{maximumFractionDigits:1})} <small>Go connus</small></div>
+  <div class="bars" role="progressbar" aria-label="Capacité référencée" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${ratio}"><i style="width:${ratio}%"></i></div>
+  <p class="muted">${games.length} jeu(x) · ${cap!==null?cap.toLocaleString('fr-FR')+' Go indiqués':'capacité inconnue'}</p>
+  ${cap!==null&&knownGB>cap?'<p class="warning">Ta liste dépasse la capacité renseignée.</p>':''}
+  ${unknownCount?`<p class="warning">${unknownCount} jeu(x) sans taille, estimation incomplète.</p>`:''}
+  ${loc.type==='usb'?'<p class="warning">Jeux PS5 conservés, non jouables directement.</p>':''}
+  <div class="actions"><button class="btn secondary small" data-action="edit-storage" data-id="${esc(loc.id)}">Capacité</button>
+  <button class="btn secondary small" data-action="filter-storage" data-id="${esc(loc.id)}">Voir les jeux</button></div></section>`;
  }).join('')}</div>
- ${section('Jeux répertoriés','Pour déplacer un jeu, modifie son emplacement.',`<div class="card">${data.games.filter(g=>g.storageId).length?data.games.filter(g=>g.storageId).map(gameRow).join(''):empty('Aucun jeu associé','Ajoute un jeu avec son emplacement.')}</div>`)}
- <div class="notice">Les jeux PS5 peuvent être conservés sur USB, mais doivent être transférés sur le SSD interne ou un M.2 compatible avant d'être lancés. Les jeux PS4 compatibles peuvent être lancés depuis USB.</div>`;
+ ${section('Jeux par support','Ouvre une fiche pour déclarer un changement d’emplacement.',`<div class="card">${active.length?active.map(gameRow).join(''):empty('Aucun jeu associé','Ajoute un jeu et sélectionne un emplacement.')}</div>`)}
+ <div class="notice">Les jeux PS5 sur USB doivent être retransférés vers le SSD interne ou un M.2 compatible pour être lancés. Les jeux PS4 compatibles peuvent fonctionner depuis USB. Les mouvements dans Gaming sont déclaratifs : ils ne déplacent pas les fichiers de la console.</div>`;
 }
 function tracking(){
  const rows=data.items.filter(t=>itemFilter==='all'||t.kind===itemFilter).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
@@ -199,13 +207,21 @@ function tracking(){
 function settings(){
  return `<div class="eyebrow">CONTRÔLE & SÉCURITÉ</div><h1 class="title">Réglages<span style="color:var(--accent)">.</span></h1>
  <p class="sub">Gaming est indépendant, stocké localement et utilisable hors connexion.</p>
- ${section('Données','Conserve une copie de ta bibliothèque.',`<div class="card">
+ ${section('Personnalisation','Un style Gaming à ton image, comme dans NEXUS.',`<div class="card g3-customize">
+  <h3>Ambiance</h3><p class="hint">Choisis une base. Les données et la navigation restent identiques.</p>
+  <div class="g3-theme-choices">${THEMES.map(([id,name,desc])=>`<button type="button" class="g3-theme-card ${data.preferences.theme===id?'selected':''}" data-action="choose-theme" data-value="${id}" aria-pressed="${data.preferences.theme===id}">
+   <span class="g3-theme-sample g3-sample-${id}"><i></i><i></i><i></i></span><strong>${name}</strong><small>${desc}</small></button>`).join('')}</div>
+  <h3>Couleur principale</h3><div class="g3-accent-choices">${ACCENTS.map(([id,name])=>`<button type="button" class="g3-accent-choice ${data.preferences.accent===id?'selected':''}" data-action="choose-accent" data-value="${id}" aria-pressed="${data.preferences.accent===id}">
+   <span class="g3-accent-dot g3-dot-${id}"></span>${name}</button>`).join('')}</div>
+  <p class="hint">Ces préférences sont incluses dans la sauvegarde JSON et restent présentes après une mise à jour.</p>
+ </div>`)}
+  ${section('Données','Conserve une copie de ta bibliothèque.',`<div class="card">
  <div class="setting"><div><strong>Exporter mes données</strong><p>Une sauvegarde JSON de tous les jeux, événements et supports.</p></div><button class="btn secondary small" data-action="export">Export</button></div>
  <div class="setting"><div><strong>Importer un JSON</strong><p>Remplace les données locales après confirmation.</p></div><button class="btn secondary small" data-action="import">Import</button></div>
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
  ${section('Connexions','Les ponts entre applications viendront plus tard.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>${data.connections.length?'Gaming est jumelée à NEXUS. Seuls les tests de liaison sont actifs.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
  <div class="setting"><div><strong>Notifications push</strong><p>Non activées dans cette bêta.</p></div><span class="chip">À venir</span></div></div>`)}
- ${section('À propos','Gaming V0.2 · liaison NEXUS en test',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
+ ${section('À propos','Gaming V0.3 · bibliothèque et personnalisation',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
 function render(){const pages={home,games,storage,tracking,settings};$('root').innerHTML=(pages[page]||home)();document.querySelectorAll('[data-nav]').forEach(b=>{b.classList.toggle('active',b.dataset.nav===page);b.setAttribute('aria-current',b.dataset.nav===page?'page':'false');});}
 const field=(label,name,value='',extra='')=>`<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;
@@ -219,26 +235,31 @@ function gameForm(id){
  ${selectField('État','status',[['installed','Installé'],['stored','Stocké'],['wishlist','Souhait'],['backlog','À jouer']],g.status||'installed')}</div>
  <div class="formgrid">${selectField('Support','storageId',[['','Aucun'],...data.storage.map(s=>[s.id,s.label])],g.storageId||'ps5-internal')}
  ${field('Taille en Go (facultatif)','sizeGB',g.sizeGB??'','type="number" min="0" max="100000" step="0.1"')}</div>
+ ${field('Genre (facultatif)','genre',g.genre||'','maxlength="50" placeholder="FPS, MMO, course, simulation…"')}
+ <div class="formgrid">${field('Dernière session','lastPlayedAt',g.lastPlayedAt||'','type="date"')}
+ <label class="g3-checkbox"><input type="checkbox" name="favorite" ${g.favorite?'checked':''}><span>★ Jeu favori</span></label></div>
  <label>Notes<textarea name="notes" maxlength="2000">${esc(g.notes||'')}</textarea></label>
  <p class="hint">Les jeux et leurs tailles sont déclarés manuellement, jamais récupérés de la console.</p>
  <div class="formactions"><button type="button" class="btn secondary" data-action="close">Annuler</button><button type="submit" class="btn">Enregistrer</button></div></form>`);
  $('edit-form').addEventListener('submit',async e=>{
  e.preventDefault();const v=Object.fromEntries(new FormData(e.target)),title=String(v.title||'').trim(),size=v.sizeGB===''?null:Number(v.sizeGB);
- if(!title||size!=null&&(!Number.isFinite(size)||size<0||size>100000)){toast('Nom ou taille invalide.');return}
- const status=select(v.status,['installed','stored','wishlist','backlog'],'installed');
- const record={...g,id:g.id||uid(),title:title.slice(0,120),platform:select(v.platform,['PS5','PS4','PC','Xbox','Switch','other'],'PS5'),
- status,storageId:['wishlist','backlog'].includes(status)?'':v.storageId||'',sizeGB:size,notes:String(v.notes||'').slice(0,2000),
+ if(!title||size!=null&&(!Number.isFinite(size)||size<0||size>100000)||!validDate(String(v.lastPlayedAt||''))){toast('Nom, taille ou date invalide.');return}
+ let status=select(v.status,['installed','stored','wishlist','backlog'],'installed');
+ const platform=select(v.platform,['PS5','PS4','PC','Xbox','Switch','other'],'PS5');
+ if(platform==='PS5'&&v.storageId==='ps5-usb'&&status==='installed')status='stored';
+ const record={...g,id:g.id||uid(),title:title.slice(0,120),platform,
+ status,storageId:['wishlist','backlog'].includes(status)?'':v.storageId||'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
  createdAt:g.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old)Object.assign(old,record);else data.games.push(record);
  await persist();closeModal();render();toast('Jeu enregistré.');
  });
 }
-function itemForm(id,kind='pass'){
+function itemForm(id,kind='pass',defaultGameId=''){
  const old=data.items.find(i=>i.id===id),t=old||{};
  modal(old?'Modifier un suivi':'Ajouter un suivi',`<form id="edit-form" class="form">
  ${selectField('Type','kind',[['pass','Pass de combat'],['dlc','DLC'],['release','Nouveauté'],['event','Événement'],['expense','Dépense prévue']],t.kind||kind)}
  ${field('Libellé','title',t.title||'','required maxlength="140" placeholder="Ex. Passe Delta Force"')}
- <label>Jeu associé<select name="gameId">${gameOptions(t.gameId||'')}</select></label>
+ <label>Jeu associé<select name="gameId">${gameOptions(t.gameId||defaultGameId||'')}</select></label>
  <div class="formgrid">${field('Date importante','date',t.date||'','type="date"')}
  ${selectField('Statut','status',[['planned','À prévoir'],['active','Actif'],['paid','Payé'],['finished','Terminé'],['canceled','Annulé']],t.status||'planned')}</div>
  <div class="formgrid">${field('Prix (€) (facultatif)','price',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 6,99"')}
@@ -298,7 +319,7 @@ async function importBackup(file){
  try{
  const parsed=JSON.parse(await file.text()),incoming=normalize(parsed.data||parsed);
  if(!confirm('Remplacer toutes les données Gaming locales ? Conserve d’abord un export JSON.'))return;
- data=incoming;await persist();closeModal();render();toast('Sauvegarde importée.');
+ data=incoming;applyAppearance();await persist();closeModal();render();toast('Sauvegarde importée.');
  }catch(e){toast('Erreur import : '+String(e.message).slice(0,80));}
 }
 
