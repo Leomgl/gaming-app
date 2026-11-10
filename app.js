@@ -107,6 +107,8 @@ function gameDetail(id){
  modal('Fiche jeu · '+g.title,`<div class="g3-detail">
   <div class="g3-cover g5-detail-cover">${gamePoster(g,true)}<div><small>${esc(g.platform)}</small>
    <h3>${esc(g.title)}</h3><p>${esc(g.genre||'Genre non renseigné')}${g.favorite?' · ★ Favori':''}</p></div></div>
+  <div class="g6-detail-cover-bar"><button class="btn secondary small" data-action="find-cover" data-id="${esc(g.id)}">Trouver une jaquette</button>
+    ${g.coverSource?`<a class="g6-cover-credit" href="${esc(g.coverSource)}" target="_blank" rel="noopener noreferrer">Source Wikipédia</a>`:''}</div>
   <div class="g3-summary-grid">
    <div><small>État</small><strong>${esc(gameStatus(g))}</strong></div>
    <div><small>Bibliothèque</small><strong>${isOwned(g)?'Possédé':'Non possédé'}</strong></div>
@@ -190,6 +192,7 @@ function gameTile(g){
    <div class="g5-game-actions">
    ${needsInstall(g)?`<button class="btn secondary small" data-action="install-game" data-id="${esc(g.id)}">＋ Installer</button>`:''}
    <button class="btn secondary small" data-action="view-game" data-id="${esc(g.id)}">Fiche</button>
+   <button class="btn secondary small" data-action="find-cover" data-id="${esc(g.id)}">Jaquette</button>
    <button class="btn secondary small" data-action="new-related-item" data-id="${esc(g.id)}">＋ Pass / DLC</button></div>
    </div>
  </article>`;
@@ -550,6 +553,22 @@ function render(){const pages={home,games,storage,tracking,settings};$('root').i
 const field=(label,name,value='',extra='')=>`<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;
 const selectField=(label,name,opts,current)=>`<label>${label}<select name="${name}">${opts.map(([v,text])=>`<option value="${esc(v)}" ${v===current?'selected':''}>${esc(text)}</option>`).join('')}</select></label>`;
 const gameOptions=id=>[['','Aucun jeu'],...data.games.map(g=>[g.id,g.title])].map(([val,label])=>`<option value="${esc(val)}" ${val===id?'selected':''}>${esc(label)}</option>`).join('');
+
+const gamingCoversAdapter={
+ game:id=>data.games.find(g=>g.id===id),
+ modal,
+ edit:id=>gameForm(id),
+ async save(id,url,source,options={}){
+  const g=data.games.find(x=>x.id===id);if(!g)return;
+  g.coverUrl=coverSafe(url);
+  g.coverSource=g.coverUrl&&source?String(source).slice(0,500):'';
+  g.updatedAt=new Date().toISOString();
+  await persist();
+  if(!options.quiet){closeModal();render();gameDetail(id);toast(g.coverUrl?'Jaquette enregistrée.':'Jaquette retirée.');}
+  else render();
+ }
+};
+
 function gameForm(id,requestedStatus=''){
  const old=data.games.find(g=>g.id===id),g=old||{};
  modal(old?'Modifier un jeu':'Ajouter un jeu',`<form id="edit-form" class="form">
@@ -579,10 +598,11 @@ function gameForm(id,requestedStatus=''){
  if(platform==='PS5'&&v.storageId==='ps5-usb'&&status==='installed')status='stored';
  if(status==='stored'&&v.storageId!=='ps5-usb'&&platform==='PS5')status='installed';
  const record={...g,id:g.id||uid(),title:title.slice(0,120),platform,
- status,owned,storageId:onDevice({status})?v.storageId||'':'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),coverUrl:coverSafe(v.coverUrl),favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
+ status,owned,storageId:onDevice({status})?v.storageId||'':'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),coverUrl:coverSafe(v.coverUrl),coverSource:coverSafe(v.coverUrl)===coverSafe(g.coverUrl)?g.coverSource||'':'',favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
  createdAt:g.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old)Object.assign(old,record);else data.games.push(record);
  await persist();closeModal();render();toast('Jeu enregistré.');
+ if(!record.coverUrl&&(!old||old.title!==record.title))window.GamingCovers?.auto?.(record.id,record.title);
  });
 }
 function itemForm(id,kind='pass',defaultGameId=''){
@@ -767,6 +787,7 @@ document.addEventListener('click',async e=>{
  if(act==='link-test')return sendLinkTest();
  if(act==='link-forget')return forgetLink();
  if(act==='view-game')return gameDetail(id);
+ if(act==='find-cover')return window.GamingCovers?.find?.(id);
  if(act==='uninstall-game')return markGameUninstalled(id);
  if(act==='install-game')return gameForm(id,'installed');
  if(act==='toggle-favorite')return toggleFavorite(id);
@@ -809,6 +830,13 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
  if(e.target.id==='g3-platform'){platformFilter=e.target.value;render();}
  if(e.target.id==='g3-sort'){gameSort=e.target.value;render();}
+ if(e.target.name==='status'&&e.target.closest?.('#edit-form')){
+  const checkbox=$('edit-form')?.querySelector?.('input[name="owned"]');
+  if(checkbox){
+   if(e.target.value==='wishlist')checkbox.checked=false;
+   else if(e.target.value==='uninstalled'||e.target.value==='installed'||e.target.value==='stored')checkbox.checked=true;
+  }
+ }
  if(e.target.name==='kind'){
  const pass=$('g5-pass-editor'),other=$('g5-other-editor');
  if(pass)pass.hidden=e.target.value!=='pass';
@@ -819,6 +847,7 @@ $('import-file').addEventListener('change',async e=>{const file=e.target.files?.
 $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal()});
 window.addEventListener('online',()=>window.GamingPush?.queue?.());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)window.GamingPush?.queue?.()});
-(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();render();window.GamingPush?.attach?.(seasonPushJobs);
+document.addEventListener('error',e=>{if(e.target?.matches?.('.g5-poster img, .g6-cover-choice img'))e.target.remove();},true);
+(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();window.GamingCovers?.attach?.(gamingCoversAdapter);render();window.GamingPush?.attach?.(seasonPushJobs);
  if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }catch(e){$('root').innerHTML='<div class="empty"><strong>Stockage inaccessible</strong>Active le stockage local Safari et recharge la page.</div>';}})();
