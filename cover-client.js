@@ -2,7 +2,7 @@
    No API key, no stored third-party binary, no backend catalogue. */
 'use strict';
 (()=>{
- let adapter=null;
+ let adapter=null,batchOffset=0;
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const safeImg=url=>{
   try{const u=new URL(url);return u.protocol==='https:'&&u.hostname==='upload.wikimedia.org'&&u.href.length<=500?u.href:''}catch{return ''}
@@ -94,7 +94,9 @@
  async function fillMissing(){
   if(!adapter?.games)throw Error('Bibliothèque indisponible.');
   if(!navigator.onLine)throw Error('Connexion Internet nécessaire pour rechercher les images.');
-  const candidates=adapter.games().filter(g=>g.title&&!g.coverUrl).slice(0,6);
+  const remaining=adapter.games().filter(g=>g.title&&!g.coverUrl);
+  const candidates=Array.from({length:Math.min(6,remaining.length)},(_,i)=>remaining[(batchOffset+i)%remaining.length]);
+  if(remaining.length)batchOffset=(batchOffset+candidates.length)%remaining.length;
   let matched=0;
   for(const item of candidates){
    try{
