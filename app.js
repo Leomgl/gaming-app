@@ -9,11 +9,12 @@ const STORAGE=[
 const THEMES=[['night','Night Ops','Cockpit sombre actuel'],['nebula','Nebula','Sombre, bleu-violet'],['carbon','Carbon','Noir et contrasté'],['slate','Ardoise','Clair, doux et minimal']];
 const ACCENTS=[['lime','Lime'],['cyan','Cyan'],['violet','Violet'],['amber','Ambre'],['red','Rouge']];
 const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[],connections:[],preferences:{theme:'night',accent:'lime'}});
+const today=()=>new Date().toLocaleDateString('sv-SE');
 let data=INITIAL(),db=null,page='home',gameFilter='all',platformFilter='all',storageFilter='all',gameSort='recent',itemFilter='all',trackingTab='passes',calendarMonth=today().slice(0,7),calendarDay=today(),query='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>crypto.randomUUID();
-const today=()=>new Date().toLocaleDateString('sv-SE');
+
 const fmt=s=>s?new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'Date à confirmer';
 const euro=n=>n==null?'—':(n/100).toLocaleString('fr-FR',{style:'currency',currency:'EUR'});
 const euros=s=>{if(String(s??'').trim()==='')return null;const n=Number(String(s).trim().replace(',','.'));return Number.isFinite(n)&&n>=0&&n<10000000?Math.round(n*100):NaN};
