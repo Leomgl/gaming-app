@@ -76,10 +76,19 @@ export async function pushRouter(request,env){
  if(path==='/api/v1/gaming-push/register'){
   const auth=AUTH.exec(request.headers.get('authorization')||'');
   if(!auth||!validSub(payload?.subscription))return json({ok:false,error:'INVALID_REGISTRATION'},400);
+  if(!env.PUSH_RATE_PEPPER)return json({ok:false,error:'NOT_CONFIGURED'},503);
+  const nowAt=Date.now();
+  const key=await sha('gaming-register:'+new Date(nowAt).toISOString().slice(0,10)+':'+(request.headers.get('CF-Connecting-IP')||'unknown')+':'+env.PUSH_RATE_PEPPER);
+  const limited=await env.DB.prepare(`INSERT INTO push_register_rate(day_key,count,updated_at) VALUES(?,1,?)
+   ON CONFLICT(day_key) DO UPDATE SET count=count+1,updated_at=excluded.updated_at WHERE count<20 RETURNING count`)
+   .bind(key,nowAt).first();
+  if(!limited)return json({ok:false,error:'REGISTRATION_RATE_LIMIT'},429);
   const sub=payload.subscription,deviceId=await sha(sub.endpoint);
   const tokenHash=await sha('gaming-push-v1:'+auth[1]),now=Math.floor(Date.now()/1000);
   const existing=await env.DB.prepare('SELECT token_hash FROM push_devices WHERE device_id=?').bind(deviceId).first();
   if(existing&&existing.token_hash!==tokenHash)return json({ok:false,error:'DEVICE_ALREADY_REGISTERED'},409);
+  const total=await env.DB.prepare('SELECT COUNT(*) AS n FROM push_devices').first();
+  if(!existing&&Number(total?.n)>=500)return json({ok:false,error:'CAPACITY_LIMIT'},503);
   await env.DB.prepare(`INSERT INTO push_devices(device_id,token_hash,endpoint,p256dh,auth,created_at,updated_at)
     VALUES(?,?,?,?,?,?,?) ON CONFLICT(device_id) DO UPDATE SET
     endpoint=excluded.endpoint,p256dh=excluded.p256dh,auth=excluded.auth,updated_at=excluded.updated_at`)
@@ -154,4 +163,5 @@ export async function deliverDue(env){
  }
  await env.DB.prepare('DELETE FROM push_jobs WHERE delivered_at IS NOT NULL AND delivered_at<?').bind(now-30*86400).run();
  await env.DB.prepare('DELETE FROM push_jobs WHERE delivered_at IS NULL AND fire_at<?').bind(now-86400).run();
+ await env.DB.prepare('DELETE FROM push_register_rate WHERE updated_at<?').bind((now-2*86400)*1000).run();
 }
