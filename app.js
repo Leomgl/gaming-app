@@ -1,5 +1,5 @@
 "use strict";
-/* Gaming V0.3 — library, storage and configurable visual identity. NEXUS LINK stays test-only. */
+/* Gaming V0.4 — battle pass management, calendar, personal reminders + safe-area fix. LINK is test-only. */
 const DB_NAME='gaming-personal-v1',STORE='state';
 const STORAGE=[
  {id:'ps5-internal',type:'internal',label:'SSD interne PS5',capacityGB:null},
@@ -9,7 +9,7 @@ const STORAGE=[
 const THEMES=[['night','Night Ops','Cockpit sombre actuel'],['nebula','Nebula','Sombre, bleu-violet'],['carbon','Carbon','Noir et contrasté'],['slate','Ardoise','Clair, doux et minimal']];
 const ACCENTS=[['lime','Lime'],['cyan','Cyan'],['violet','Violet'],['amber','Ambre'],['red','Rouge']];
 const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[],connections:[],preferences:{theme:'night',accent:'lime'}});
-let data=INITIAL(),db=null,page='home',gameFilter='all',platformFilter='all',storageFilter='all',gameSort='recent',itemFilter='all',query='';
+let data=INITIAL(),db=null,page='home',gameFilter='all',platformFilter='all',storageFilter='all',gameSort='recent',itemFilter='all',trackingTab='passes',calendarMonth=today().slice(0,7),calendarDay=today(),query='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>crypto.randomUUID();
@@ -123,13 +123,163 @@ function gameRow(g){
  <div class="item-end"><button data-action="view-game" data-id="${esc(g.id)}">Ouvrir</button>
  <button data-action="edit-game" data-id="${esc(g.id)}">Modifier</button></div></div>`;
 }
+
+const REMINDER_PRESETS=[[10080,'7 jours'],[1440,'1 jour'],[120,'2 heures'],[45,'45 min'],[15,'15 min']];
+const isDated=item=>!!(item.date&&validDate(item.date));
+const isConfirmed=item=>isDated(item)&&item.dateConfidence==='confirmed';
+const isActiveItem=item=>!['canceled','finished'].includes(item.status);
+function reminderMinutes(item){
+ const list=Array.isArray(item?.reminderMinutes)?item.reminderMinutes:[];
+ return [...new Set(list.map(Number).filter(n=>Number.isSafeInteger(n)&&n>=0&&n<=40320))].sort((a,b)=>b-a).slice(0,10);
+}
+function reminderLabel(minutes){
+ if(minutes%10080===0)return minutes/10080+' sem.';
+ if(minutes%1440===0)return minutes/1440+' j';
+ if(minutes%60===0)return minutes/60+' h';
+ return minutes+' min';
+}
+function passProgress(t){
+ const target=Number(t.targetLevel),current=Number(t.currentLevel);
+ if(!Number.isFinite(target)||target<1||!Number.isFinite(current)||current<0)return null;
+ return {level:Math.min(Math.round(current),Math.round(target)),target:Math.round(target),
+  pct:Math.max(0,Math.min(100,Math.round(100*current/target)))};
+}
+function deadline(t){
+ const days=relativeDays(t.date);
+ if(days===null)return {label:'Sans échéance',tone:'unknown'};
+ if(t.dateConfidence!=='confirmed')return {label:'Date '+(t.dateConfidence==='tentative'?'provisoire':'à confirmer'),tone:'unknown'};
+ if(days<0)return {label:'Échéance passée',tone:'past'};
+ if(days===0)return {label:"Aujourd'hui",tone:'urgent'};
+ if(days===1)return {label:'Demain',tone:'urgent'};
+ if(days<=7)return {label:'J-'+days,tone:'soon'};
+ return {label:'J-'+days,tone:'normal'};
+}
+function passCard(t){
+ const progress=passProgress(t),due=deadline(t),reminders=reminderMinutes(t);
+ return `<article class="g4-pass-card card">
+  <div class="row g4-pass-head"><div><span class="eyebrow">${esc(gameTitle(t.gameId))}</span>
+    <h3>${esc(t.title)}</h3></div><span class="g4-deadline g4-${due.tone}">${esc(due.label)}</span></div>
+  <div class="g4-pass-progress">
+   <div class="row"><span class="muted">Progression du pass</span>
+   <strong>${progress?progress.level+' / '+progress.target+' niveaux':'Non renseignée'}</strong></div>
+   <div class="bars"><i style="width:${progress?.pct??0}%"></i></div>
+   <div class="row"><small class="muted">${progress?progress.pct+' % complété':'Définis le niveau actuel et l’objectif'}</small>
+   <span class="muted">${t.date?fmt(t.date):'Fin inconnue'}</span></div>
+  </div>
+  <div class="g4-pass-meta">${t.priceCents!=null?`<span>Prix : ${euro(t.priceCents)}</span>`:''}
+    ${t.startDate?`<span>Début : ${fmt(t.startDate)}</span>`:''}
+    ${reminders.length?`<span>${reminders.length} rappel(s) préparé(s)</span>`:''}</div>
+  <div class="g4-pass-actions"><button class="btn secondary small" data-action="pass-level" data-id="${esc(t.id)}" data-delta="1" ${!progress||progress.pct>=100?'disabled':''}>＋1 niv.</button>
+   <button class="btn secondary small" data-action="pass-level" data-id="${esc(t.id)}" data-delta="5" ${!progress||progress.pct>=100?'disabled':''}>＋5 niv.</button>
+   <button class="btn secondary small" data-action="edit-item" data-id="${esc(t.id)}">Modifier</button></div>
+  </article>`;
+}
+async function changePassLevel(id,delta){
+ const t=data.items.find(x=>x.id===id&&x.kind==='pass');if(!t)return;
+ const p=passProgress(t);if(!p)return;
+ t.currentLevel=Math.max(0,Math.min(p.target,p.level+delta));
+ t.updatedAt=new Date().toISOString();
+ await persist();render();toast('Progression mise à jour.');
+}
+function shiftMonth(delta){
+ const year=Number(calendarMonth.slice(0,4)),month=Number(calendarMonth.slice(5,7));
+ const d=new Date(year,month-1+delta,1,12);
+ calendarMonth=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+ const valid=calendarDay.startsWith(calendarMonth);
+ if(!valid)calendarDay=calendarMonth+'-01';
+ render();
+}
+function calendarMarkup(){
+ const [year,month]=calendarMonth.split('-').map(Number);
+ const first=new Date(year,month-1,1,12),last=new Date(year,month,0,12).getDate();
+ const startOffset=(first.getDay()+6)%7;
+ const slots=Math.ceil((startOffset+last)/7)*7;
+ const title=first.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+ const valid=data.items.filter(t=>isDated(t)&&t.kind!=='expense'&&isActiveItem(t));
+ const byDay={};
+ valid.forEach(t=>{(byDay[t.date]??=[]).push(t)});
+ const days=Array.from({length:slots},(_,i)=>{
+  const day=i-startOffset+1;
+  if(day<1||day>last)return '<div class="g4-calendar-blank" aria-hidden="true"></div>';
+  const date=calendarMonth+'-'+String(day).padStart(2,'0'),ev=byDay[date]||[];
+  const certain=ev.some(isConfirmed);
+  return `<button type="button" class="g4-calendar-day ${date===calendarDay?'selected':''} ${date===today()?'today':''}"
+   data-action="calendar-day" data-date="${date}" aria-label="${day} : ${ev.length} événement(s)" aria-pressed="${date===calendarDay}">
+   <span>${day}</span>${ev.length?`<i class="${certain?'':'tentative'}" title="${ev.length} événement(s)"></i>`:''}</button>`;
+ }).join('');
+ const selected=byDay[calendarDay]||[];
+ return `<div class="g4-calendar-wrap card">
+ <div class="row g4-calendar-title"><button class="btn secondary small" data-action="calendar-prev" aria-label="Mois précédent">‹</button>
+  <h3>${esc(title)}</h3><button class="btn secondary small" data-action="calendar-next" aria-label="Mois suivant">›</button></div>
+ <div class="g4-calendar-grid g4-weekdays">${['L','M','M','J','V','S','D'].map(x=>`<strong>${x}</strong>`).join('')}</div>
+ <div class="g4-calendar-grid">${days}</div>
+ <div class="g4-calendar-legend"><span>● Date confirmée</span><span>○ Date à confirmer</span></div>
+ <div class="g4-calendar-selected"><h4>${fmt(calendarDay)} · ${selected.length} élément(s)</h4>
+  ${selected.length?selected.map(itemRow).join(''):empty('Aucun événement ce jour','Sélectionne un jour marqué ou ajoute une échéance.')}</div></div>`;
+}
+function calendarDateToUTC(date,time){
+ if(!validDate(date)||!date)return null;
+ const clock=/^([01]\d|2[0-3]):[0-5]\d$/.test(time||'')?time:'18:00';
+ const d=new Date(date+'T'+clock+':00');
+ return Number.isFinite(d.getTime())?d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,''):null;
+}
+function escapeIcs(value){
+ return String(value??'').replace(/\\/g,'\\\\').replace(/\r\n|\n|\r/g,'\\n').replace(/;/g,'\\;').replace(/,/g,'\\,');
+}
+function foldIcs(str){
+ const lines=String(str).split('\r\n');
+ return lines.map(line=>{
+  let output='',count=0;
+  for(const char of line){
+   const bytes=new TextEncoder().encode(char).length;
+   if(count+bytes>73){output+='\r\n ';count=1;}
+   output+=char;count+=bytes;
+  }
+  return output;
+ }).join('\r\n');
+}
+function buildCalendarIcs(items=data.items){
+ const eligible=items.filter(t=>t.kind!=='expense'&&isActiveItem(t)&&isConfirmed(t));
+ const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+ const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Gaming Personal//Calendar V04//FR',
+  'CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:Gaming'];
+ for(const t of eligible){
+  const start=calendarDateToUTC(t.date,t.reminderTime||'18:00');
+  if(!start)continue;
+  const end=new Date(new Date(t.date+'T'+(t.reminderTime||'18:00')+':00').getTime()+3600000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const uidPart=encodeURIComponent(String(t.id)).replace(/%/g,'_');
+  lines.push('BEGIN:VEVENT','UID:'+uidPart+'@gaming-personal',
+   'DTSTAMP:'+stamp,'DTSTART:'+start,'DTEND:'+end,
+   'SUMMARY:'+escapeIcs((t.kind==='pass'?'Fin de pass · ':'')+t.title),
+   'DESCRIPTION:'+escapeIcs([types[t.kind],gameTitle(t.gameId),
+    t.notes||'','Créé manuellement dans Gaming'].filter(Boolean).join(' — ')));
+  for(const minutes of reminderMinutes(t))
+   lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+escapeIcs(t.title),
+    'TRIGGER:-PT'+minutes+'M','END:VALARM');
+  lines.push('END:VEVENT');
+ }
+ lines.push('END:VCALENDAR');
+ return {count:eligible.length,content:foldIcs(lines.join('\r\n'))+'\r\n'};
+}
+function downloadCalendar(){
+ const result=buildCalendarIcs();
+ if(!result.count){toast('Aucune date confirmée à exporter.');return;}
+ const blob=new Blob([result.content],{type:'text/calendar;charset=utf-8'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='gaming-calendrier-'+today()+'.ics';document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),10000);
+ toast(result.count+' événement(s) exporté(s) au calendrier.');
+}
+
 function itemRow(t){
- const diff=relativeDays(t.date),when=t.date?diff<0?'Date passée':diff===0?"Aujourd'hui":diff===1?'Demain':diff+' jours':'Date à confirmer';
- return `<div class="item"><span class="item-logo">${({pass:'◷',dlc:'✦',release:'★',event:'◇',expense:'€'})[t.kind]||'✦'}</span>
+ const dateLabel=deadline(t),isPass=t.kind==='pass',progress=isPass?passProgress(t):null;
+ return `<div class="item g4-item"><span class="item-logo">${({pass:'◷',dlc:'✦',release:'★',event:'◇',expense:'€'})[t.kind]||'✦'}</span>
  <div class="item-body"><strong>${esc(t.title)}</strong><small>${esc(types[t.kind]||'Suivi')} · ${esc(gameTitle(t.gameId))} · ${fmt(t.date)}
- ${t.priceCents!=null?' · '+euro(t.priceCents):''}</small>
- <span class="chip ${diff!=null&&diff>=0&&diff<=7?'warn':''}">${esc(when)}</span>
- ${t.status==='paid'?'<span class="chip">Payé (non synchronisé)</span>':t.status==='active'?'<span class="chip">Actif</span>':''}</div>
+  ${t.priceCents!=null?' · '+euro(t.priceCents):''}</small>
+ <span class="chip ${dateLabel.tone==='urgent'||dateLabel.tone==='soon'?'warn':''}">${esc(dateLabel.label)}</span>
+ ${isPass&&progress?`<span class="chip">${progress.pct}% du pass</span>`:''}
+ ${t.status==='paid'?'<span class="chip">Payé (non synchronisé)</span>':t.status==='active'?'<span class="chip">Actif</span>':''}
+ ${reminderMinutes(t).length?`<span class="chip">${reminderMinutes(t).length} rappel(s) préparé(s)</span>`:''}</div>
  <div class="item-end"><button data-action="edit-item" data-id="${esc(t.id)}">Modifier</button>
  <button class="red" data-action="delete-item" data-id="${esc(t.id)}">Supprimer</button></div></div>`;
 }
@@ -197,13 +347,34 @@ function storage(){
 }
 function tracking(){
  const rows=data.items.filter(t=>itemFilter==='all'||t.kind===itemFilter).sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+ const passes=data.items.filter(t=>t.kind==='pass').sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
  const planned=data.items.filter(t=>t.priceCents!=null&&!['paid','canceled'].includes(t.status));
- return `<div class="eyebrow">PASSES · DLC · NOUVEAUTÉS</div><div class="row"><h1 class="title">Suivi<span style="color:var(--accent)">.</span></h1><button class="btn small" data-action="new-item" data-kind="pass">＋ Ajouter</button></div>
- <p class="sub">Tes échéances et tes dépenses prévues liées aux jeux.</p>
- <div class="tabs">${[['all','Tous'],['pass','Pass'],['dlc','DLC'],['release','Nouveautés'],['event','Événements'],['expense','Dépenses']].map(([id,label])=>`<button class="${itemFilter===id?'active':''}" data-action="filter-items" data-filter="${id}">${label}</button>`).join('')}</div>
- <div class="card">${rows.length?rows.map(itemRow).join(''):empty('Aucun suivi','Ajoute un pass, DLC, événement ou achat prévu.')}</div>
- ${section('Dépenses à prévoir','Non enregistrées dans NEXUS.',`<div class="card row"><span class="muted">${planned.length} poste(s) à prévoir</span><strong class="money">${euro(planned.reduce((s,t)=>s+t.priceCents,0))}</strong></div>`)}
- <div class="notice">NEXUS LINK n'est pas encore activé. Même lorsqu'un pass est marqué « Payé », aucune dépense n'est créée dans NEXUS avant une future connexion et validation.</div>`;
+ const due7=data.items.filter(t=>isConfirmed(t)&&isActiveItem(t)&&relativeDays(t.date)>=0&&relativeDays(t.date)<=7).length;
+ let content='';
+ if(trackingTab==='passes'){
+   content=`<div class="grid g4-pass-stats">
+    <div class="card"><span class="eyebrow">PASSES ACTIFS</span><div class="metric">${passes.filter(t=>t.status==='active').length}</div><span class="muted">en cours</span></div>
+    <div class="card"><span class="eyebrow">ÉCHÉANCES 7 J</span><div class="metric">${due7}</div><span class="muted">dates confirmées</span></div>
+    <div class="card"><span class="eyebrow">À PRÉVOIR</span><div class="metric" style="font-size:22px">${euro(planned.reduce((n,t)=>n+t.priceCents,0))}</div><span class="muted">hors dépenses réelles</span></div>
+   </div>${section('Mes passes de combat','Progression et échéances au même endroit.',
+    passes.length?`<div class="g4-pass-list">${passes.map(passCard).join('')}</div>`:empty('Aucun pass suivi','Ajoute un pass, puis indique son niveau actuel et sa date de fin.'),
+    '<button class="btn secondary small" data-action="new-item" data-kind="pass">＋ Pass</button>')}`;
+ }else if(trackingTab==='calendar'){
+   content=`<div class="g4-calendar-toolbar"><div><strong>Calendrier Gaming</strong><p class="muted">Sélectionne un jour pour voir ses échéances.</p></div>
+   <button class="btn secondary small" data-action="export-calendar">↓ Export .ics</button></div>
+   ${calendarMarkup()}
+   <div class="notice">Les rappels sont enregistrés dans Gaming. Pour recevoir des alertes iPhone, exporte les événements confirmés en .ics puis importe-les dans ton calendrier avec ses notifications activées. Aucun push Gaming autonome n'est activé pour l'instant.</div>`;
+ }else{
+   content=`<div class="tabs g4-kind-tabs">${[['all','Tous'],['pass','Pass'],['dlc','DLC'],['release','Nouveautés'],['event','Événements'],['expense','Dépenses']].map(([id,label])=>`<button class="${itemFilter===id?'active':''}" data-action="filter-items" data-filter="${id}">${label}</button>`).join('')}</div>
+   <div class="card">${rows.length?rows.map(itemRow).join(''):empty('Aucun suivi','Ajoute un pass, DLC, événement ou achat prévu.')}</div>
+   ${section('Dépenses à prévoir','Séparées des dépenses réelles NEXUS.',`<div class="card row"><span class="muted">${planned.length} poste(s) à prévoir</span><strong class="money">${euro(planned.reduce((n,t)=>n+t.priceCents,0))}</strong></div>`)}`;
+ }
+ return `<div class="eyebrow">PASSES · CALENDRIER · SUIVI</div><div class="row">
+ <h1 class="title">Suivi<span style="color:var(--accent)">.</span></h1><button class="btn small" data-action="new-item" data-kind="pass">＋ Ajouter</button></div>
+ <p class="sub">Organise les saisons, DLC, sorties et échéances, jeu par jeu.</p>
+ <div class="tabs g4-main-tabs">${[['passes','Pass de combat'],['calendar','Calendrier'],['all','Tout le suivi']].map(([id,label])=>`<button class="${trackingTab===id?'active':''}" data-action="tracking-tab" data-tab="${id}">${label}</button>`).join('')}</div>
+ ${content}
+ <p class="hint g4-link-note">NEXUS LINK reste en mode test. Les opérations financières et événements ne sont pas transférés automatiquement.</p>`;
 }
 function settings(){
  return `<div class="eyebrow">CONTRÔLE & SÉCURITÉ</div><h1 class="title">Réglages<span style="color:var(--accent)">.</span></h1>
