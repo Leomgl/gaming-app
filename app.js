@@ -9,7 +9,7 @@ const STORAGE=[
 const THEMES=[['night','Night Ops','Cockpit sombre actuel'],['nebula','Nebula','Sombre, bleu-violet'],['carbon','Carbon','Noir et contrasté'],['slate','Ardoise','Clair, doux et minimal']];
 const ACCENTS=[['lime','Lime'],['cyan','Cyan'],['violet','Violet'],['amber','Ambre'],['red','Rouge']];
 const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[],connections:[],preferences:{theme:'night',accent:'lime'}});
-let data=INITIAL(),db=null,page='home',gameFilter='all',platformFilter='all',gameSort='recent',itemFilter='all',query='';
+let data=INITIAL(),db=null,page='home',gameFilter='all',platformFilter='all',storageFilter='all',gameSort='recent',itemFilter='all',query='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>crypto.randomUUID();
@@ -153,7 +153,7 @@ function home(){
 function games(){
  const rows=data.games.filter(g=>{
   const stateMatch=gameFilter==='all'||(gameFilter==='usb'?g.storageId==='ps5-usb':gameFilter==='favorites'?!!g.favorite:g.status===gameFilter);
-  return stateMatch&&(platformFilter==='all'||g.platform===platformFilter)&&[g.title||'',g.genre||'',g.notes||''].join(' ').toLowerCase().includes(query.toLowerCase());
+  return stateMatch&&(platformFilter==='all'||g.platform===platformFilter)&&(storageFilter==='all'||g.storageId===storageFilter)&&[g.title||'',g.genre||'',g.notes||''].join(' ').toLowerCase().includes(query.toLowerCase());
  }).sort((a,b)=>{
   if(gameSort==='name')return String(a.title).localeCompare(String(b.title),'fr');
   if(gameSort==='size')return Number(b.sizeGB||0)-Number(a.sizeGB||0);
@@ -166,6 +166,7 @@ function games(){
  <div class="g3-lib-tools"><label class="g3-search-label"><span class="sr-only">Rechercher un jeu</span><input id="game-search" value="${esc(query)}" placeholder="Rechercher titre, genre ou notes…" autocomplete="off"></label>
  <div class="g3-select-row"><label>Plateforme<select id="g3-platform"><option value="all">Toutes</option>${platforms.map(p=>`<option value="${esc(p)}" ${platformFilter===p?'selected':''}>${esc(p)}</option>`).join('')}</select></label>
  <label>Trier par<select id="g3-sort"><option value="recent" ${gameSort==='recent'?'selected':''}>Ajout récent</option><option value="name" ${gameSort==='name'?'selected':''}>Nom A → Z</option><option value="favorite" ${gameSort==='favorite'?'selected':''}>Favoris</option><option value="size" ${gameSort==='size'?'selected':''}>Taille</option></select></label></div></div>
+ ${storageFilter!=='all'?`<div class="g3-storage-active-filter">Emplacement : ${esc(storageName(storageFilter))} <button data-action="clear-storage-filter">Retirer ✕</button></div>`:''}
  <div class="tabs">${[['all','Tous'],['installed','Installés'],['stored','Stockés'],['usb','USB'],['favorites','Favoris'],['wishlist','Souhaits'],['backlog','À jouer']].map(([id,label])=>`<button class="${gameFilter===id?'active':''}" data-action="filter-games" data-filter="${id}">${label}</button>`).join('')}</div>
  <div class="card">${rows.length?rows.map(gameRow).join(''):empty('Aucun jeu dans cette vue','Change tes filtres ou crée une nouvelle fiche.')}</div>
  <p class="hint g3-results">Résultats : ${rows.length} sur ${data.games.length} jeu(x). Les données sont locales et les fiches sont conservées pendant les mises à jour.</p>`;
@@ -380,6 +381,13 @@ document.addEventListener('click',async e=>{
  if(act==='link-status')return linkStatus();
  if(act==='link-test')return sendLinkTest();
  if(act==='link-forget')return forgetLink();
+ if(act==='view-game')return gameDetail(id);
+ if(act==='move-game')return moveGame(id,btn.dataset.target);
+ if(act==='new-related-item')return itemForm(null,'pass',id);
+ if(act==='filter-storage'){storageFilter=btn.dataset.id;gameFilter='all';platformFilter='all';go('games');return}
+ if(act==='clear-storage-filter'){storageFilter='all';render();return}
+ if(act==='choose-theme')return setAppearance('theme',btn.dataset.value);
+ if(act==='choose-accent')return setAppearance('accent',btn.dataset.value);
  if(act==='new-game')return gameForm();
  if(act==='edit-game')return gameForm(id);
  if(act==='delete-game')return remove('game',id);
@@ -403,8 +411,12 @@ document.addEventListener('input',e=>{
  query=e.target.value;const pos=e.target.selectionStart;render();
  const input=$('game-search');input?.focus();input?.setSelectionRange(pos,pos);
 });
+document.addEventListener('change',e=>{
+ if(e.target.id==='g3-platform'){platformFilter=e.target.value;render();}
+ if(e.target.id==='g3-sort'){gameSort=e.target.value;render();}
+});
 $('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];e.target.value='';if(file)await importBackup(file)});
 $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal()});
-(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);render();
+(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();render();
  if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }catch(e){$('root').innerHTML='<div class="empty"><strong>Stockage inaccessible</strong>Active le stockage local Safari et recharge la page.</div>';}})();
