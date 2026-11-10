@@ -35,3 +35,15 @@ Aucun paiement, pass, rendez-vous ni jeu n'est importé dans NEXUS automatiqueme
 - **Rétrocompatibilité** : les items V0.2/V0.3 sans niveaux ni rappels continuent d'exister ; aucun effacement, nouveau stockage ou migration D1. NEXUS LINK reste limité aux messages de test.
 
 Parcours iPhone conseillé : vérifier la barre supérieure, enregistrer un pass Delta Force avec niveau et échéance confirmée, choisir les rappels, voir le calendrier, exporter le .ics, fermer/réouvrir, vérifier le jumelage NEXUS LINK.
+
+## Gaming V0.5 — Couvertures de jeux + saisons + Web Push iOS
+
+Les jeux ont désormais des **cartes visuelles**, un badge de plateforme, un favori, et un accès rapide aux saisons/DLC. Des couvertures HTTPS peuvent être ajoutées manuellement. Sans URL, un visuel graphique est généré par genre.
+
+Les saisons sont suivies **même si le pass de combat n'a pas été acheté** : numéro (Delta Force 12, MW4 1), dates de début et de fin, statut « acheté ou non ». Aucune dépense n'est créée automatiquement. Les niveaux de progression de pass V0.4 sont conservés dans les anciennes fiches mais ne sont plus montrés.
+
+Trois rappels par saison, indépendants de l'achat : **mi-saison, 14 jours, 7 jours avant la fin**, à 10 h locale. Ils sont disponibles en notifications iOS Web Push quand la PWA est installée sur l'écran d'accueil et que l'utilisateur autorise les notifications dans Réglages. Les dates doivent être confirmées. Le calendrier et les exports .ics incluent les jalons de saison.
+
+Le Worker Gaming gère ses API push sous /api/v1/gaming-push/ avec D1 EU gaming-push-db, cron 5 minutes, clé VAPID privée dans les secrets Cloudflare (non publiée dans Git). Aucun titre de jeu, coût, note ou numéro de saison n'est conservé côté serveur : seulement des dates, le type d'étape, des ID opaques et l'abonnement du navigateur.
+
+Les jetons de souscription sont stockés localement dans IndexedDB en dehors des exports JSON. Les fiches, préférences et jumelages NEXUS sont conservés. Un test de notification sur iPhone physique reste indispensable avant de considérer les push validés de bout en bout.

@@ -223,3 +223,56 @@ body::before{
 :root[data-theme="slate"] .top .brand strong{color:#ffffff}
 :root[data-theme="slate"] .top .brand small{color:#bdcbc1}
 :root[data-theme="slate"] .top .offline{color:#d1e0d6;border-color:#526c5d}
+
+/* Gaming V0.5 — Game cards, seasons and notifications */
+.g5-game-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.g5-game-card{display:flex;flex-direction:column;min-width:0;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--card-radius);box-shadow:0 8px 28px #00000012}
+.g5-game-cover-action{display:block;padding:0;width:100%;aspect-ratio:16/11;background:transparent;text-align:left}
+.g5-game-cover-action:focus-visible,.g5-favorite:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.g5-poster{position:relative;display:grid;place-items:center;isolation:isolate;overflow:hidden;width:100%;height:100%;min-height:100px;background:radial-gradient(circle at 78% 18%,#ffffff34,transparent 35%),linear-gradient(115deg,#2b424f,#111d2b)}
+.g5-poster::before{content:"";position:absolute;inset:0;z-index:-1;background:repeating-linear-gradient(135deg,transparent 0 18px,#ffffff09 19px 20px)}
+.g5-poster::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(0deg,#050a18ba,transparent 55%);pointer-events:none}
+.g5-poster.g5-tactical{background:radial-gradient(circle at 78% 18%,#efc89245,transparent 40%),linear-gradient(145deg,#3f4b41,#122329)}
+.g5-poster.g5-speed{background:radial-gradient(circle at 78% 18%,#f4a27555,transparent 38%),linear-gradient(145deg,#594035,#171e2a)}
+.g5-poster.g5-explore{background:radial-gradient(circle at 78% 18%,#b5a8fa61,transparent 38%),linear-gradient(145deg,#423a67,#142a3c)}
+.g5-poster-glyph{color:#f8fbffca;font-size:clamp(48px,7vw,90px);font-weight:950;line-height:1;letter-spacing:-.13em;text-shadow:0 14px 26px #050a1b70}
+.g5-poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.g5-poster-platform{position:absolute;z-index:3;bottom:10px;left:10px;padding:5px 8px;color:white;background:#111925cb;border:1px solid #ffffff55;border-radius:7px;font-size:9px;font-weight:850}
+.g5-game-info{flex:1;display:flex;flex-direction:column;gap:8px;padding:14px}
+.g5-game-title{max-width:100%;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;text-align:left;padding:0;background:transparent;font-size:15px;font-weight:850}
+.g5-game-title:hover{text-decoration:underline}
+.g5-favorite{flex:none;border:1px solid var(--line);background:var(--panel2);color:var(--gold);border-radius:9px;padding:4px 8px;font-size:18px}
+.g5-game-meta{color:var(--muted);font-size:11px}
+.g5-game-season{background:var(--subtle-accent);border:1px solid var(--line);border-radius:9px;color:var(--accent);font-size:10px;padding:6px 8px}
+.g5-game-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:auto}
+.g5-game-actions>.btn{font-size:10px;flex:1 1 auto;padding:8px}
+.g5-detail-cover .g5-poster-small{width:80px;min-width:80px;height:102px;min-height:102px;border-radius:11px}
+.g5-detail-cover .g5-poster-small .g5-poster-glyph{font-size:46px}
+.g5-detail-cover .g5-poster-small .g5-poster-platform{bottom:4px;left:4px;font-size:7px;padding:3px 5px}
+.g5-season-card{gap:13px}
+.g5-season-states,.g5-season-alerts,.g5-game-actions,.g5-season-dates{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.g5-owned,.g5-season-status{border:1px solid var(--line);background:var(--panel2);border-radius:22px;padding:5px 9px;color:var(--muted);font-size:10px}
+.g5-owned.is-owned{background:var(--subtle-accent);color:var(--accent)}
+.g5-season-dates>div{background:var(--panel2);border-radius:11px;padding:11px;flex:1 1 100px}
+.g5-season-dates small,.g5-season-dates strong{display:block}
+.g5-season-dates small{color:var(--muted);font-size:10px}
+.g5-season-dates strong{font-size:12px;margin-top:4px}
+.g5-season-alerts{font-size:10px;color:var(--muted)}
+.g5-season-alerts>span:not(.muted){color:var(--ink);background:var(--panel2);padding:5px 8px;border-radius:7px}
+.g5-pass-editor,.g5-other-editor{display:grid;gap:13px}
+.g5-pass-editor[hidden],.g5-other-editor[hidden]{display:none!important}
+.g5-ownership-control{display:flex!important;flex-direction:row!important;align-items:center;gap:10px!important;background:var(--subtle-accent);border:1px solid var(--line);border-radius:11px;padding:13px}
+.g5-ownership-control input{width:20px!important;height:20px;flex:none;accent-color:var(--accent)}
+.g5-ownership-control strong,.g5-ownership-control small{display:block}
+.g5-ownership-control strong{color:var(--ink);font-size:12px}
+.g5-ownership-control small{font-size:10px;color:var(--muted)}
+.g5-season-options{display:grid;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:13px}
+.g5-season-options>strong{font-size:13px}
+.g5-push-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:17px 0}
+.g5-push-status>div{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:11px;color:var(--muted);font-size:11px}
+.g5-push-status strong{display:block;color:var(--ink);font-size:13px;margin-top:4px}
+@media(max-width:700px){.g5-game-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .g5-game-info{padding:11px}.g5-game-title{font-size:12px}.g5-game-meta{font-size:10px}
+ .g5-game-actions>.btn{font-size:9px}.g5-poster-glyph{font-size:60px}
+ .g5-poster{min-height:93px}}
+@media(max-width:360px){.g5-game-grid{grid-template-columns:1fr}}
