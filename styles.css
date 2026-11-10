@@ -6,6 +6,7 @@
  --sheet-bg:#1c2736;--hero-bg:linear-gradient(110deg,#21332d,#17243a);
  --hero-border:#405855;--subtle-accent:#bff08a16;--card-radius:18px;
 }
+:root[data-theme="night"] { color-scheme: dark; }
 :root[data-theme="nebula"] {
  color-scheme:dark;--bg:#141226;--panel:#211f38;--panel2:#2c2947;
  --ink:#f2f0ff;--muted:#aaa6c6;--line:#443f61;
