@@ -8,7 +8,7 @@ const STORAGE=[
 ];
 const THEMES=[['night','Night Ops','Cockpit sombre actuel'],['nebula','Nebula','Sombre, bleu-violet'],['carbon','Carbon','Noir et contrasté'],['slate','Ardoise','Clair, doux et minimal']];
 const ACCENTS=[['lime','Lime'],['cyan','Cyan'],['violet','Violet'],['amber','Ambre'],['red','Rouge']];
-const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[],connections:[],preferences:{theme:'night',accent:'lime'}});
+const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[],connections:[],linkOutbox:[],preferences:{theme:'night',accent:'lime'}});
 const today=()=>new Date().toLocaleDateString('sv-SE');
 let data=INITIAL(),db=null,page='home',gameFilter='all',platformFilter='all',storageFilter='all',gameSort='recent',itemFilter='all',trackingTab='passes',calendarMonth=today().slice(0,7),calendarDay=today(),query='';
 const $=id=>document.getElementById(id);
@@ -38,13 +38,14 @@ function normalize(raw){
  d.items=raw.items.filter(x=>x&&typeof x==='object'&&x.id&&x.title).slice(0,10000);
  d.trash=Array.isArray(raw.trash)?raw.trash.filter(x=>x&&x.id&&x.record).slice(0,10000):[];
  d.connections=Array.isArray(raw.connections)?raw.connections.filter(x=>x&&x.id&&x.seed&&x.sourceApp==='gaming').slice(0,5):[];
+ d.linkOutbox=Array.isArray(raw.linkOutbox)?raw.linkOutbox.filter(x=>x&&typeof x.pairId==='string'&&typeof x.entityId==='string'&&Number.isSafeInteger(x.revision)&&x.revision>=1&&x.revision<=1e6&&/^[a-f0-9]{64}$/.test(x.fingerprint||'')).slice(0,4000):[];
  const prefs=raw.preferences&&typeof raw.preferences==='object'?raw.preferences:{};
  d.preferences={theme:select(prefs.theme,THEMES.map(x=>x[0]),'night'),accent:select(prefs.accent,ACCENTS.map(x=>x[0]),'lime')};
  for(const s of d.storage){const v=Array.isArray(raw.storage)?raw.storage.find(x=>x.id===s.id):null;if(v){const n=Number(v.capacityGB);s.capacityGB=v.capacityGB==null||v.capacityGB===''?null:Number.isFinite(n)&&n>=0&&n<=1e5?n:null;}}
  return d;
 }
 function storeSnapshot(snapshot){return new Promise((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put(snapshot,'current');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);});}
-function persist(){const snapshot=JSON.parse(JSON.stringify(data));saveChain=saveChain.catch(()=>{}).then(()=>storeSnapshot(snapshot));window.GamingPush?.queue?.();return saveChain.catch(e=>{toast('Échec de sauvegarde locale : export nécessaire.');throw e;});}
+function persist(){const snapshot=JSON.parse(JSON.stringify(data));saveChain=saveChain.catch(()=>{}).then(()=>storeSnapshot(snapshot));window.GamingPush?.queue?.();window.GamingNexusSync?.queue?.();return saveChain.catch(e=>{toast('Échec de sauvegarde locale : export nécessaire.');throw e;});}
 function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),3500);}
 function modal(title,body){$('modal-title').textContent=title;$('modal-body').innerHTML=body;$('overlay').hidden=false;}
 function closeModal(){$('overlay').hidden=true;$('modal-body').innerHTML='';}
@@ -756,10 +757,11 @@ async function importBackup(file){
    return;
   }
   modal('NEXUS LINK · Gaming',`<div class="form">
-   <div class="notice">La connexion est configurée. Pour l'instant, seuls les messages de test sont envoyés. Aucune dépense, aucun jeu et aucun rendez-vous ne sont transférés.</div>
+   <div class="notice">La connexion est configurée. Tu peux maintenant transmettre les propositions chiffrées à NEXUS pour validation. Aucune dépense ni date n’est créée automatiquement.</div>
    <div class="setting"><div><strong>Connexion active</strong><p>${pair.scopes.length} permission(s) configurée(s) depuis NEXUS.</p></div><span class="chip">Chiffrée</span></div>
    <div class="formactions"><button class="btn secondary" data-action="link-status">Vérifier</button>
-    <button class="btn" data-action="link-test">Envoyer un test</button>
+    <button class="btn" data-action="link-sync">Synchroniser avec NEXUS</button>
+    <button class="btn secondary" data-action="link-test">Envoyer un test</button>
     <button class="btn danger" data-action="link-forget">Dissocier sur cet appareil</button></div>
    <p class="hint">Pour révoquer le jumelage côté serveur, utilise NEXUS → Applications & connexions.</p></div>`);
  }
@@ -790,6 +792,7 @@ document.addEventListener('click',async e=>{
  if(act==='link-panel')return linkPanel();
  if(act==='link-status')return linkStatus();
  if(act==='link-test')return sendLinkTest();
+ if(act==='link-sync')return window.GamingNexusSync?.panel?.();
  if(act==='link-forget')return forgetLink();
  if(act==='view-game')return gameDetail(id);
  if(act==='find-cover')return window.GamingCovers?.find?.(id);
@@ -861,6 +864,10 @@ $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeModal(
 window.addEventListener('online',()=>window.GamingPush?.queue?.());
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)window.GamingPush?.queue?.()});
 document.addEventListener('error',e=>{if(e.target?.matches?.('.g5-poster img, .g6-cover-choice img'))e.target.remove();},true);
-(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();window.GamingCovers?.attach?.(gamingCoversAdapter);render();window.GamingPush?.attach?.(seasonPushJobs);
+(async()=>{try{db=await openDB();const existing=await load();if(existing)data=normalize(existing);applyAppearance();window.GamingCovers?.attach?.(gamingCoversAdapter);
+ window.GamingNexusSync?.attach?.({
+  state:()=>data,persist,toast,modal,escape:esc,seasonDates
+ });
+ render();window.GamingPush?.attach?.(seasonPushJobs);
  if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }catch(e){$('root').innerHTML='<div class="empty"><strong>Stockage inaccessible</strong>Active le stockage local Safari et recharge la page.</div>';}})();
