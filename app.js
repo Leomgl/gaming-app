@@ -1,5 +1,5 @@
 "use strict";
-/* Gaming V0.6 — owned/uninstalled library, free cover lookup, linked seasons and iOS push. */
+/* Gaming V0.7 — encrypted inter-app sync, library, seasons and iOS push. */
 const DB_NAME='gaming-personal-v1',STORE='state';
 const STORAGE=[
  {id:'ps5-internal',type:'internal',label:'SSD interne PS5',capacityGB:null},
@@ -550,7 +550,7 @@ function settings(){
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
  ${section('Connexions','Les ponts entre applications viendront plus tard.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>${data.connections.length?'Gaming est jumelée à NEXUS. Seuls les tests de liaison sont actifs.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
  <div class="setting"><div><strong>Notifications iPhone</strong><p>Mi-saison, J−14 et J−7, avec choix par pass.</p></div><button class="btn secondary small" data-action="push-settings">Configurer</button></div></div>`)}
- ${section('À propos','Gaming V0.6 · bibliothèque et jaquettes',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
+ ${section('À propos','Gaming V0.7 · synchronisation NEXUS',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
 function render(){const pages={home,games,storage,tracking,settings};$('root').innerHTML=(pages[page]||home)();document.querySelectorAll('[data-nav]').forEach(b=>{b.classList.toggle('active',b.dataset.nav===page);b.setAttribute('aria-current',b.dataset.nav===page?'page':'false');});}
 const field=(label,name,value='',extra='')=>`<label>${label}<input name="${name}" value="${esc(value)}" ${extra}></label>`;

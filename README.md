@@ -64,3 +64,17 @@ La notion de **possession** est distincte de l'installation : une fiche peut êt
 Dans Jeux, **Trouver mes jaquettes** cherche par lot de six jeux sans illustration. Les propositions sont associées automatiquement uniquement si l'article correspond exactement au nom du jeu et sa description indique un jeu vidéo. Les autres images restent accessibles depuis la fiche **Jaquette** pour vérification manuelle ; le champ URL HTTPS est toujours disponible.
 
 Une requête Wikipédia ne comprend que le nom du jeu recherché ; aucune connexion NEXUS ni donnée de pass, budget ou souscription push n'est envoyée. Le service externe peut échouer ou ne pas proposer de couverture, auquel cas la carte graphique par genre reste visible.
+
+## Gaming V0.7 — synchronisation chiffrée vers NEXUS
+
+Le jumelage NEXUS LINK existant sert à envoyer des propositions métier selon les scopes **déjà approuvés dans NEXUS**, sans nouveau code de pairage.
+
+**Gaming → Réglages → NEXUS LINK → Synchroniser avec NEXUS → Envoyer maintenant.** Gaming calcule les propositions éligibles, déduplique les éléments inchangés via une empreinte SHA-256 dans `linkOutbox[]` puis chiffre les différences via AES-GCM. Chaque source reçoit une révision, ce qui permet à NEXUS de reconnaître et proposer la mise à jour d'un élément déjà accepté.
+
+Dans la fenêtre de synchronisation, un réglage facultatif (désactivé par défaut) autorise l'envoi automatique lorsque Gaming est ouverte et connectée. Il est stocké seulement sur l'appareil, et **n'autorise pas les écritures automatiques dans NEXUS**.
+
+Correspondances : saisons → événement de fin + tâches mi-saison/J−14/J−7 ; pass réellement acheté → proposition de dépense (montant, date du paiement à confirmer dans NEXUS) ; dépense prévue → Achat ; DLC et sorties → Agenda et Achat ; événement gaming → Agenda ; compte des jeux possédés/installés/stockés → Note.
+
+Un pass non acheté (Fortnite, par exemple) peut générer ses rappels, **jamais une dépense réelle**. Les titres, prix et dates sont uniquement dans le payload chiffré ; Cloudflare ne les lit pas en clair.
+
+Le lien est volontairement unidirectionnel et soumis à validation humaine : dans NEXUS, Réglages → Applications & connexions → Propositions → Recevoir. Aucun objet NEXUS n'est supprimé si Gaming supprime un élément. La base D1, le Worker et les notifications Gaming n'ont pas été modifiés pour cette évolution.
