@@ -217,3 +217,9 @@ body::before{
  .g4-calendar-wrap{padding:11px}
  .g4-calendar-legend{flex-wrap:wrap}
 }
+
+/* Ardoise uses a dark status-bar/header canvas so iOS standalone clock remains legible. */
+:root[data-theme="slate"] body::before,:root[data-theme="slate"] .top{background:#24332e}
+:root[data-theme="slate"] .top .brand strong{color:#ffffff}
+:root[data-theme="slate"] .top .brand small{color:#bdcbc1}
+:root[data-theme="slate"] .top .offline{color:#d1e0d6;border-color:#526c5d}
