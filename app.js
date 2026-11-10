@@ -263,6 +263,9 @@ function calendarMarkup(){
  const slots=Math.ceil((startOffset+last)/7)*7;
  const title=first.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
  const valid=data.items.filter(t=>isDated(t)&&t.kind!=='expense'&&isActiveItem(t));
+ const milestones=data.items.filter(p=>p.kind==='pass'&&isActiveItem(p)&&isConfirmed(p)).flatMap(p=>
+   seasonDates(p).map(m=>({...p,id:p.id,title:m.title+' · '+p.title,kind:'event',date:m.date,dateConfidence:'confirmed',priceCents:null,reminderMinutes:[]})));
+ valid.push(...milestones);
  const byDay={};
  valid.forEach(t=>{(byDay[t.date]??=[]).push(t)});
  const days=Array.from({length:slots},(_,i)=>{
@@ -307,6 +310,10 @@ function foldIcs(str){
 }
 function buildCalendarIcs(items=data.items){
  const eligible=items.filter(t=>t.kind!=='expense'&&isActiveItem(t)&&isConfirmed(t));
+ const extra=items.filter(t=>t.kind==='pass'&&isActiveItem(t)&&isConfirmed(t)).flatMap(p=>seasonDates(p).map(m=>({
+   ...p,id:p.id+'-'+m.id,title:m.title+' · '+p.title,date:m.date,kind:'event',reminderTime:'10:00',reminderMinutes:[0]
+ })));
+ eligible.push(...extra);
  const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Gaming Personal//Calendar V04//FR',
   'CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:Gaming'];
@@ -399,7 +406,7 @@ function itemRow(t){
  <span class="chip ${dateLabel.tone==='urgent'||dateLabel.tone==='soon'?'warn':''}">${esc(dateLabel.label)}</span>
  ${isPass&&progress?`<span class="chip">${progress.pct}% du pass</span>`:''}
  ${t.status==='paid'?'<span class="chip">Payé (non synchronisé)</span>':t.status==='active'?'<span class="chip">Actif</span>':''}
- ${reminderMinutes(t).length?`<span class="chip">${reminderMinutes(t).length} rappel(s) préparé(s)</span>`:''}</div>
+ ${t.kind!=='pass'&&reminderMinutes(t).length?`<span class="chip">${reminderMinutes(t).length} rappel(s) préparé(s)</span>`:''}</div>
  <div class="item-end"><button data-action="edit-item" data-id="${esc(t.id)}">Modifier</button>
  <button class="red" data-action="delete-item" data-id="${esc(t.id)}">Supprimer</button></div></div>`;
 }
@@ -528,6 +535,8 @@ function gameForm(id){
  <div class="formgrid">${selectField('Support','storageId',[['','Aucun'],...data.storage.map(s=>[s.id,s.label])],g.storageId||'ps5-internal')}
  ${field('Taille en Go (facultatif)','sizeGB',g.sizeGB??'','type="number" min="0" max="100000" step="0.1"')}</div>
  ${field('Genre (facultatif)','genre',g.genre||'','maxlength="50" placeholder="FPS, MMO, course, simulation…"')}
+ ${field('Image de jaquette (URL HTTPS, optionnelle)','coverUrl',g.coverUrl||'','type="url" maxlength="500" placeholder="https://site.fr/jaquette.jpg"')}
+ <p class="hint">Sans image, Gaming utilise une couverture graphique par genre. Les jaquettes externes nécessitent Internet.</p>
  <div class="formgrid">${field('Dernière session','lastPlayedAt',g.lastPlayedAt||'','type="date"')}
  <label class="g3-checkbox"><input type="checkbox" name="favorite" ${g.favorite?'checked':''}><span>★ Jeu favori</span></label></div>
  <label>Notes<textarea name="notes" maxlength="2000">${esc(g.notes||'')}</textarea></label>
@@ -540,7 +549,7 @@ function gameForm(id){
  const platform=select(v.platform,['PS5','PS4','PC','Xbox','Switch','other'],'PS5');
  if(platform==='PS5'&&v.storageId==='ps5-usb'&&status==='installed')status='stored';
  const record={...g,id:g.id||uid(),title:title.slice(0,120),platform,
- status,storageId:['wishlist','backlog'].includes(status)?'':v.storageId||'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
+ status,storageId:['wishlist','backlog'].includes(status)?'':v.storageId||'',sizeGB:size,genre:String(v.genre||'').trim().slice(0,50),coverUrl:coverSafe(v.coverUrl),favorite:v.favorite==='on'||v.favorite===true,lastPlayedAt:String(v.lastPlayedAt||''),notes:String(v.notes||'').slice(0,2000),
  createdAt:g.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old)Object.assign(old,record);else data.games.push(record);
  await persist();closeModal();render();toast('Jeu enregistré.');
