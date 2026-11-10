@@ -428,28 +428,75 @@ function gameForm(id){
 }
 function itemForm(id,kind='pass',defaultGameId=''){
  const old=data.items.find(i=>i.id===id),t=old||{};
+ const chosenKind=t.kind||kind;
+ const extras=reminderMinutes(t).filter(m=>!REMINDER_PRESETS.some(p=>p[0]===m)).join(', ');
  modal(old?'Modifier un suivi':'Ajouter un suivi',`<form id="edit-form" class="form">
- ${selectField('Type','kind',[['pass','Pass de combat'],['dlc','DLC'],['release','Nouveauté'],['event','Événement'],['expense','Dépense prévue']],t.kind||kind)}
+ ${selectField('Type','kind',[['pass','Pass de combat'],['dlc','DLC'],['release','Nouveauté'],['event','Événement'],['expense','Dépense prévue']],chosenKind)}
  ${field('Libellé','title',t.title||'','required maxlength="140" placeholder="Ex. Passe Delta Force"')}
  <label>Jeu associé<select name="gameId">${gameOptions(t.gameId||defaultGameId||'')}</select></label>
- <div class="formgrid">${field('Date importante','date',t.date||'','type="date"')}
- ${selectField('Statut','status',[['planned','À prévoir'],['active','Actif'],['paid','Payé'],['finished','Terminé'],['canceled','Annulé']],t.status||'planned')}</div>
- <div class="formgrid">${field('Prix (€) (facultatif)','price',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 6,99"')}
- ${selectField('Fiabilité de la date','dateConfidence',[['unknown','À confirmer'],['tentative','Provisoire'],['confirmed','Confirmée']],t.dateConfidence||'unknown')}</div>
+ <div class="formgrid">
+  ${field('Date importante (fin de pass / sortie)','date',t.date||'','type="date"')}
+  ${selectField('Statut','status',[['planned','À prévoir'],['active','Actif'],['paid','Payé'],['finished','Terminé'],['canceled','Annulé']],t.status||'planned')}
+ </div>
+ <div class="formgrid">
+  ${field('Prix (€), facultatif','price',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 6,99"')}
+  ${selectField('Fiabilité de la date','dateConfidence',[['unknown','À confirmer'],['tentative','Provisoire'],['confirmed','Confirmée']],t.dateConfidence||'unknown')}
+ </div>
+ <div id="g4-pass-fields" class="g4-pass-fields" ${chosenKind==='pass'?'':'hidden'}>
+  <div class="formgrid">
+   ${field('Début de saison','startDate',t.startDate||'','type="date"')}
+   ${field('Niveau actuel','currentLevel',t.currentLevel??'','type="number" min="0" max="10000" placeholder="Ex. 12"')}
+  </div>
+  ${field('Niveau final / objectif','targetLevel',t.targetLevel??'','type="number" min="1" max="10000" placeholder="Ex. 50"')}
+  <p class="hint">Les niveaux sont facultatifs. La date importante correspond à la fin du pass.</p>
+ </div>
+ <div class="g4-form-reminders">
+  <h3>Rappels personnalisés</h3>
+  <p class="hint">Ils seront intégrés à un export .ics de calendrier. Aucune notification push Gaming autonome ne part directement pour le moment.</p>
+  ${field('Heure de l’événement (locale)','reminderTime',t.reminderTime||'18:00','type="time"')}
+  <div class="g4-reminder-options">${REMINDER_PRESETS.map(([minutes,label])=>`<label class="g4-reminder-choice">
+   <input type="checkbox" name="reminderPreset" value="${minutes}" ${reminderMinutes(t).includes(minutes)?'checked':''}><span>${label}</span></label>`).join('')}</div>
+  ${field('Autres rappels en minutes, séparés par virgules','customReminders',extras,'placeholder="Ex. 30, 90"')}
+ </div>
  ${field('Lien / source (optionnel)','sourceUrl',t.sourceUrl||'','type="url" maxlength="500" placeholder="https://..."')}
  <label>Notes<textarea name="notes" maxlength="2000">${esc(t.notes||'')}</textarea></label>
- <p class="hint">Une dépense prévue n'est pas une dépense réelle. Aucune information n'est envoyée à NEXUS.</p>
- <div class="formactions"><button type="button" class="btn secondary" data-action="close">Annuler</button><button type="submit" class="btn">Enregistrer</button></div></form>`);
+ <p class="hint">Aucune dépense ni date n'est transmise à NEXUS automatiquement.</p>
+ <div class="formactions"><button type="button" class="btn secondary" data-action="close">Annuler</button>
+ <button type="submit" class="btn">Enregistrer</button></div></form>`);
  $('edit-form').addEventListener('submit',async e=>{
- e.preventDefault();const v=Object.fromEntries(new FormData(e.target)),amount=euros(v.price),date=String(v.date||'');
- if(!String(v.title||'').trim()||Number.isNaN(amount)||!validDate(date)){toast('Libellé, prix ou date invalide.');return}
- const rec={...t,id:t.id||uid(),kind:select(v.kind,['pass','dlc','release','event','expense'],'event'),title:String(v.title).trim().slice(0,140),
- gameId:data.games.some(g=>g.id===v.gameId)?v.gameId:'',date,status:select(v.status,['planned','active','paid','finished','canceled'],'planned'),
- priceCents:amount,dateConfidence:select(v.dateConfidence,['unknown','tentative','confirmed'],'unknown'),
- sourceUrl:String(v.sourceUrl||'').trim().slice(0,500),notes:String(v.notes||'').slice(0,2000),
- createdAt:t.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
- if(old)Object.assign(old,rec);else data.items.push(rec);
- await persist();closeModal();render();toast('Suivi enregistré.');
+  e.preventDefault();
+  const fd=new FormData(e.target),v=Object.fromEntries(fd);
+  const title=String(v.title||'').trim(),date=String(v.date||'');
+  const itemKind=select(v.kind,['pass','dlc','release','event','expense'],'event');
+  const amount=euros(v.price),startDate=String(v.startDate||'');
+  const currentLevel=v.currentLevel===''||v.currentLevel==null?null:Number(v.currentLevel);
+  const targetLevel=v.targetLevel===''||v.targetLevel==null?null:Number(v.targetLevel);
+  const reminderTime=String(v.reminderTime||'18:00');
+  const extras=String(v.customReminders||'').trim();
+  const custom=extras?extras.split(/[,;\s]+/).filter(Boolean).map(Number):[];
+  const reminderValues=[...new Set([...fd.getAll('reminderPreset').map(Number),...custom])];
+  const levelsInvalid=itemKind==='pass'&&(
+   (currentLevel!==null&&(!Number.isSafeInteger(currentLevel)||currentLevel<0||currentLevel>10000))||
+   (targetLevel!==null&&(!Number.isSafeInteger(targetLevel)||targetLevel<1||targetLevel>10000))||
+   (currentLevel!==null&&targetLevel!==null&&currentLevel>targetLevel)
+  );
+  if(!title||Number.isNaN(amount)||!validDate(date)||!validDate(startDate)||
+    (itemKind==='pass'&&date&&startDate&&startDate>date)||
+    !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)||
+    levelsInvalid||reminderValues.length>10||reminderValues.some(n=>!Number.isSafeInteger(n)||n<0||n>40320)){
+   toast('Vérifie date, niveaux et rappels (0 à 40 320 minutes).');return;
+  }
+  const rec={...t,id:t.id||uid(),kind:itemKind,title:title.slice(0,140),
+   gameId:data.games.some(g=>g.id===v.gameId)?v.gameId:'',date,
+   status:select(v.status,['planned','active','paid','finished','canceled'],'planned'),
+   priceCents:amount,dateConfidence:select(v.dateConfidence,['unknown','tentative','confirmed'],'unknown'),
+   startDate:itemKind==='pass'?startDate:'',currentLevel:itemKind==='pass'?currentLevel:null,
+   targetLevel:itemKind==='pass'?targetLevel:null,reminderTime,
+   reminderMinutes:reminderValues.sort((a,b)=>b-a),
+   sourceUrl:String(v.sourceUrl||'').trim().slice(0,500),notes:String(v.notes||'').slice(0,2000),
+   createdAt:t.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  if(old)Object.assign(old,rec);else data.items.push(rec);
+  await persist();closeModal();render();toast('Suivi enregistré.');
  });
 }
 function storageForm(id){
