@@ -298,3 +298,10 @@ body::before{
 .g6-cover-grid .g6-cover-choice:hover{border-color:var(--accent)}
 .g5-poster img[hidden],.g6-cover-choice img[hidden]{display:none!important}
 @media(min-width:690px){.g6-cover-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.g6-library-covers{display:flex;align-items:center;flex-wrap:wrap;gap:11px;margin:-7px 0 15px}
+.g6-library-covers .hint{flex:1;min-width:155px}
+.g6-cover-finder .form{gap:9px}
+.g6-cover-picker .empty{padding:14px}
+@media(max-width:700px){.g6-library-covers{align-items:flex-start;flex-direction:column;gap:5px}
+ .g6-library-covers .hint{flex:initial}}

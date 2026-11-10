@@ -58,3 +58,9 @@ La notion de **possession** est distincte de l'installation : une fiche peut êt
 - Les images ne sont pas copiées sur le Worker ni dans D1 : seule une URL Wikimedia et un lien d'attribution sont enregistrés sur le téléphone. Certaines pages fournissent des logos/illustrations plutôt que des pochettes. Les droits d'images dépendent de la source.
 - Nouvelle règle CSP autorisant les deux API Wikimedia ; stockage, jumelage NEXUS LINK, rappels push Gaming et clés conservés inchangés.
 - Pas de coût supplémentaire : aucune nouvelle base, aucun secret, pas de requêtes d'API payantes.
+
+### Recherche de jaquettes pour une bibliothèque déjà créée
+
+Dans Jeux, **Trouver mes jaquettes** cherche par lot de six jeux sans illustration. Les propositions sont associées automatiquement uniquement si l'article correspond exactement au nom du jeu et sa description indique un jeu vidéo. Les autres images restent accessibles depuis la fiche **Jaquette** pour vérification manuelle ; le champ URL HTTPS est toujours disponible.
+
+Une requête Wikipédia ne comprend que le nom du jeu recherché ; aucune connexion NEXUS ni donnée de pass, budget ou souscription push n'est envoyée. Le service externe peut échouer ou ne pas proposer de couverture, auquel cas la carte graphique par genre reste visible.
