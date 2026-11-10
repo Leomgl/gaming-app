@@ -6,7 +6,7 @@ const STORAGE=[
  {id:'ps5-m2',type:'m2',label:'SSD M.2',capacityGB:null},
  {id:'ps5-usb',type:'usb',label:'Disque USB externe',capacityGB:null}
 ];
-const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[]});
+const INITIAL=()=>({version:1,games:[],items:[],storage:STORAGE.map(s=>({...s})),trash:[],connections:[]});
 let data=INITIAL(),db=null,page='home',gameFilter='all',itemFilter='all',query='';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,6 +30,7 @@ function normalize(raw){
  const d=INITIAL();d.games=raw.games.filter(x=>x&&typeof x==='object'&&x.id&&x.title).slice(0,10000);
  d.items=raw.items.filter(x=>x&&typeof x==='object'&&x.id&&x.title).slice(0,10000);
  d.trash=Array.isArray(raw.trash)?raw.trash.filter(x=>x&&x.id&&x.record).slice(0,10000):[];
+ d.connections=Array.isArray(raw.connections)?raw.connections.filter(x=>x&&x.id&&x.seed&&x.sourceApp==='gaming').slice(0,5):[];
  for(const s of d.storage){const v=Array.isArray(raw.storage)?raw.storage.find(x=>x.id===s.id):null;if(v){const n=Number(v.capacityGB);s.capacityGB=v.capacityGB==null||v.capacityGB===''?null:Number.isFinite(n)&&n>=0&&n<=1e5?n:null;}}
  return d;
 }
@@ -119,7 +120,7 @@ function settings(){
  <div class="setting"><div><strong>Exporter mes données</strong><p>Une sauvegarde JSON de tous les jeux, événements et supports.</p></div><button class="btn secondary small" data-action="export">Export</button></div>
  <div class="setting"><div><strong>Importer un JSON</strong><p>Remplace les données locales après confirmation.</p></div><button class="btn secondary small" data-action="import">Import</button></div>
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
- ${section('Connexions','Les ponts entre applications viendront plus tard.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>Non connecté. Aucun échange n'a lieu.</p></div><span class="chip warn">À venir</span></div>
+ ${section('Connexions','Les ponts entre applications viendront plus tard.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>${data.connections.length?'Gaming est jumelée à NEXUS. Seuls les tests de liaison sont actifs.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
  <div class="setting"><div><strong>Notifications push</strong><p>Non activées dans cette bêta.</p></div><span class="chip">À venir</span></div></div>`)}
  ${section('À propos','Gaming V0.1 · bêta privée',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
@@ -217,11 +218,64 @@ async function importBackup(file){
  data=incoming;await persist();closeModal();render();toast('Sauvegarde importée.');
  }catch(e){toast('Erreur import : '+String(e.message).slice(0,80));}
 }
+
+ function linkPanel(){
+  const pair=data.connections[0];
+  if(!window.NexusLinkCore){toast('Module LINK indisponible. Recharge la page.');return;}
+  if(!pair){
+   modal('Connecter NEXUS',`<form id="link-form" class="form">
+    <div class="notice">Dans NEXUS, ouvre Réglages → Applications & connexions, coche une autorisation Gaming, puis touche « Jumeler ». Copie le code généré et colle-le ci-dessous.</div>
+    <label>Code de jumelage<textarea name="code" rows="5" required placeholder="NXL1. …" style="overflow-wrap:anywhere;word-break:break-all"></textarea></label>
+    <p class="hint">Ce code est privé et permet de chiffrer les messages. Ne le communique pas dans une conversation.</p>
+    <div class="formactions"><button type="button" class="btn secondary" data-action="close">Annuler</button><button class="btn" type="submit">Connecter</button></div></form>`);
+   $('link-form').addEventListener('submit',async e=>{
+    e.preventDefault();
+    try{
+     const code=new FormData(e.target).get('code'),info=window.NexusLinkCore.readInvite(code);
+     if(info.sourceApp!=='gaming')throw Error('CODE_OTHER_APP');
+     const remote=await window.NexusLinkCore.status(info);
+     if(remote.sourceApp!=='gaming')throw Error('PAIR_MISMATCH');
+     data.connections=[info];await persist();closeModal();render();toast('Gaming est jumelée à NEXUS.');
+    }catch(err){toast('Code refusé : '+String(err.message).slice(0,75));}
+   });
+   return;
+  }
+  modal('NEXUS LINK · Gaming',`<div class="form">
+   <div class="notice">La connexion est configurée. Pour l'instant, seuls les messages de test sont envoyés. Aucune dépense, aucun jeu et aucun rendez-vous ne sont transférés.</div>
+   <div class="setting"><div><strong>Connexion active</strong><p>${pair.scopes.length} permission(s) configurée(s) depuis NEXUS.</p></div><span class="chip">Chiffrée</span></div>
+   <div class="formactions"><button class="btn secondary" data-action="link-status">Vérifier</button>
+    <button class="btn" data-action="link-test">Envoyer un test</button>
+    <button class="btn danger" data-action="link-forget">Dissocier sur cet appareil</button></div>
+   <p class="hint">Pour révoquer le jumelage côté serveur, utilise NEXUS → Applications & connexions.</p></div>`);
+ }
+ async function linkStatus(){
+  const pair=data.connections[0];if(!pair)return;
+  try{const r=await window.NexusLinkCore.status(pair);toast(r.connected?'Connexion NEXUS LINK active.':'Lien non actif.');}
+  catch(e){toast('Connexion indisponible ou révoquée : '+String(e.message).slice(0,55));}
+ }
+ async function sendLinkTest(){
+  const pair=data.connections[0];if(!pair)return;
+  try{
+   const scope=pair.scopes[0];
+   await window.NexusLinkCore.publish(pair,{entityId:'ping-'+crypto.randomUUID(),revision:1,scope,
+    payload:{type:'test.ping',title:'Message de test Gaming',sourceApp:'gaming',createdAt:new Date().toISOString()}});
+   toast('Test chiffré envoyé. Ouvre Messages dans NEXUS.');
+  }catch(e){toast('Échec du test : '+String(e.message).slice(0,70));}
+ }
+ async function forgetLink(){
+  if(!confirm('Dissocier Gaming localement ? Tu pourras révoquer le lien sur NEXUS.'))return;
+  data.connections=[];await persist();closeModal();render();toast('Connexion locale dissociée.');
+ }
+
 document.addEventListener('click',async e=>{
  const nav=e.target.closest('[data-nav]');if(nav){go(nav.dataset.nav);return}
  const btn=e.target.closest('[data-action]');if(!btn)return;
  const act=btn.dataset.action,id=btn.dataset.id;
  if(act==='close')return closeModal();
+ if(act==='link-panel')return linkPanel();
+ if(act==='link-status')return linkStatus();
+ if(act==='link-test')return sendLinkTest();
+ if(act==='link-forget')return forgetLink();
  if(act==='new-game')return gameForm();
  if(act==='edit-game')return gameForm(id);
  if(act==='delete-game')return remove('game',id);
