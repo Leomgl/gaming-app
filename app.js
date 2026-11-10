@@ -478,7 +478,7 @@ function games(){
  <p class="hint g3-results">Résultats : ${rows.length} sur ${data.games.length} jeu(x). Les données sont locales et les fiches sont conservées pendant les mises à jour.</p>`;
 }
 function storage(){
- const active=data.games.filter(g=>g.storageId&&!['wishlist','backlog'].includes(g.status));
+ const active=data.games.filter(g=>g.storageId&&onDevice(g));
  const known=active.reduce((n,g)=>n+(g.sizeGB==null?0:Number(g.sizeGB)||0),0);
  const missing=active.filter(g=>g.sizeGB==null).length;
  return `<div class="eyebrow">CONSOLE · SUPPORTS</div><h1 class="title">Stockage<span style="color:var(--accent)">.</span></h1>
