@@ -78,3 +78,18 @@ Correspondances : saisons → événement de fin + tâches mi-saison/J−14/J−
 Un pass non acheté (Fortnite, par exemple) peut générer ses rappels, **jamais une dépense réelle**. Les titres, prix et dates sont uniquement dans le payload chiffré ; Cloudflare ne les lit pas en clair.
 
 Le lien est volontairement unidirectionnel et soumis à validation humaine : dans NEXUS, Réglages → Applications & connexions → Propositions → Recevoir. Aucun objet NEXUS n'est supprimé si Gaming supprime un élément. La base D1, le Worker et les notifications Gaming n'ont pas été modifiés pour cette évolution.
+
+
+## NEXUS Connect 2.0 — achats de passes (11 novembre 2026)
+
+Gaming conserve les **saisons et les passes** ; NEXUS devient le centre des opérations financières. Un pass peut être suivi **sans être acheté**. Si le pass est effectivement acheté, Gaming envoie seulement une proposition chiffrée lorsque le scope `pass_paid` a été autorisé depuis NEXUS.
+
+Pour chaque pass acheté : saisir son **prix réellement payé** et, si connue, sa **date réelle d'achat** dans le formulaire Gaming. La date de fin de la saison est une donnée **différente**. Le message NEXUS LINK inclut un identifiant stable `<id-du-pass>:paid`, `currency: EUR`, `isPaid: true`, `paymentDate` et `priceCents`.
+
+Dans NEXUS V0.19, l'utilisateur peut choisir **Réglages → NEXUS Connect 2.0 → Pass Gaming payé → Budget** pour autoriser une inscription automatique et idempotente dans le Journal, **uniquement** lorsque le prix et la date d'achat sont présents. Sinon, il conserve l'examen manuel habituel des propositions. Une correction de montant ou de date après inscription demande une nouvelle confirmation ; aucune transaction historique n'est modifiée silencieusement.
+
+Le transport n'a pas changé : envoi depuis Gaming via NEXUS LINK, éventuellement automatique lorsque Gaming est ouverte, puis réception dans NEXUS lorsque celle-ci est ouverte. Aucun accès au compte PlayStation, aucun paiement déclenché et aucune nouvelle permission imposée.
+
+**Validation nécessaire sur vrai iPhone** et avec les deux PWAs jumelées. Ne pas confondre réussite des tests statiques et déploiement Cloudflare : inspecter la version réellement servie par le Worker.
+
+Référence NEXUS : [Connect 2.0](https://github.com/Leomgl/nexus-app/blob/main/docs/CONNECT-V019.md).
