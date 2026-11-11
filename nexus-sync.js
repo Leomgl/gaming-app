@@ -19,6 +19,7 @@ function build(){
     title:text(title,140),game:text(meta.game,100),details:text(meta.details,500),
     date:valid(meta.date)?meta.date:'',time:/^([01]\d|2[0-3]):[0-5]\d$/.test(meta.time||'')?meta.time:'10:00',
     priceCents:Number.isSafeInteger(meta.priceCents)&&meta.priceCents>=0?meta.priceCents:null,
+    currency:'EUR',isPaid:meta.isPaid===true,paymentDate:valid(meta.paymentDate)?meta.paymentDate:'',
     season:Number.isInteger(meta.season)&&meta.season>0?meta.season:null};
   out.push({entityId:permission+':'+id+':'+target,scope:permission,payload});
  };
@@ -40,7 +41,8 @@ function build(){
     }
    }
    if(purchased&&price!=null)push(it.id+':paid','pass_paid','transactions',titlePrefix+' · Pass de combat',
-    {game:name,priceCents:price,season,details:'Achat déclaré dans Gaming. Confirmer la date réelle dans NEXUS.'});
+    {game:name,priceCents:price,season,isPaid:true,paymentDate:valid(it.paidDate)?it.paidDate:'',
+     details:valid(it.paidDate)?'Achat de pass confirmé dans Gaming, le '+it.paidDate+'.':'Achat confirmé dans Gaming. Renseigner la date réelle avant validation NEXUS.'});
   }else if(it.kind==='expense'){
    if(!['finished','paid'].includes(it.status))
     push(it.id,'future_spending','purchases',name+' · '+title,
