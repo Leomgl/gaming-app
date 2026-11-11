@@ -633,6 +633,8 @@ function itemForm(id,kind='pass',defaultGameId=''){
     <span><strong>J’ai acheté le pass</strong><small>Décoché = saison suivie sans achat (Fortnite, etc.)</small></span></label>
   ${selectField('État de la saison','statusPass',[['planned','À venir'],['active','En cours'],['finished','Terminée'],['canceled','Annulée']],status)}
   ${field('Prix du pass, facultatif (€)','pricePass',t.priceCents!=null?(t.priceCents/100).toFixed(2):'','inputmode="decimal" placeholder="Ex. 6,99"')}
+  ${field('Date réelle d’achat du pass (facultative)','paidDate',t.paidDate||'','type="date"')}
+  <p class="hint">Pour permettre l’inscription automatique dans le budget NEXUS, indique le prix réellement payé et la date d’achat. La date de fin de saison reste indépendante.</p>
   ${selectField('Fiabilité des dates','dateConfidencePass',[['confirmed','Confirmées'],['tentative','Provisoires'],['unknown','À confirmer']],t.dateConfidence||'confirmed')}
   <div class="g5-season-options"><strong>Notifications de saison</strong>
    <p class="hint">Un rappel à 10 h, à mi-saison puis à 2 semaines et 1 semaine avant la fin. Les alertes sont facultatives et indépendantes de l’achat du pass.</p>
@@ -654,7 +656,7 @@ function itemForm(id,kind='pass',defaultGameId=''){
  </div>
  ${field('Lien / source, facultatif','sourceUrl',t.sourceUrl||'','type="url" maxlength="500" placeholder="https://..."')}
  <label>Notes<textarea name="notes" maxlength="2000">${esc(t.notes||'')}</textarea></label>
- <p class="hint">« Pass acheté » est une information de suivi : Gaming ne crée aucune dépense NEXUS automatiquement.</p>
+ <p class="hint">Gaming conserve ton suivi. Un achat payé peut être transmis à NEXUS si le lien « Pass acheté » est autorisé. Son inscription automatique au budget dépend d’une autorisation distincte dans NEXUS.</p>
  <div class="formactions"><button type="button" class="btn secondary" data-action="close">Annuler</button>
  <button type="submit" class="btn">Enregistrer</button></div></form>`);
  $('edit-form').addEventListener('submit',async e=>{
@@ -663,6 +665,7 @@ function itemForm(id,kind='pass',defaultGameId=''){
   const itemKind=select(v.kind,['pass','dlc','release','event','expense'],'event'),isPass=itemKind==='pass';
   const title=String(v.title||'').trim(),startDate=isPass?String(v.startDate||''):'';
   const date=String(isPass?v.date||'':v.otherDate||''),amount=euros(isPass?v.pricePass:v.priceOther);
+  const paidDate=isPass?String(v.paidDate||''):'';
   const number=v.seasonNumber===''||v.seasonNumber==null?null:Number(v.seasonNumber);
   const status=isPass?select(v.statusPass,['planned','active','finished','canceled'],'active'):select(v.statusOther,['planned','active','paid','finished','canceled'],'planned');
   const dateConfidence=isPass?select(v.dateConfidencePass,['confirmed','tentative','unknown'],'confirmed'):
@@ -672,7 +675,7 @@ function itemForm(id,kind='pass',defaultGameId=''){
   const customSource=isPass?'':String(v.customReminders||'').trim();
   const custom=customSource?customSource.split(/[,;\s]+/).filter(Boolean).map(Number):[];
   const otherReminders=isPass?[]:[...new Set([...fd.getAll('reminderPreset').map(Number),...custom])];
-  if(!title||Number.isNaN(amount)||!validDate(date)||!validDate(startDate)||
+  if(!title||Number.isNaN(amount)||!validDate(date)||!validDate(startDate)||!validDate(paidDate)||
    isPass&&(number!==null&&(!Number.isSafeInteger(number)||number<1||number>10000)||
     !startDate||!date||startDate>=date)||
    !/^([01]\d|2[0-3]):[0-5]\d$/.test(reminderTime)||
@@ -683,6 +686,7 @@ function itemForm(id,kind='pass',defaultGameId=''){
    gameId:data.games.some(g=>g.id===v.gameId)?v.gameId:'',date,status,priceCents:amount,dateConfidence,
    startDate,seasonNumber:isPass?number:null,
    passOwned:isPass?fd.get('passOwned')==='on':false,
+   paidDate:isPass&&fd.get('passOwned')==='on'?paidDate:'',
    seasonReminders:isPass?seasonReminders:[],
    reminderTime,reminderMinutes:isPass?[]:otherReminders.sort((a,b)=>b-a),
    sourceUrl:String(v.sourceUrl||'').trim().slice(0,500),notes:String(v.notes||'').slice(0,2000),
