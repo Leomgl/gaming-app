@@ -40,10 +40,17 @@
    return p;
   }catch{return null}
  }
+ function isStandaloneContext(){
+  return (typeof navigator!=='undefined'&&navigator.standalone===true)||
+   (typeof window.matchMedia==='function'&&window.matchMedia('(display-mode: standalone)').matches);
+ }
+ // A browser tab may have different IndexedDB data from the installed iOS PWA.
+ // No pairing found in this origin context is NOT proof that a known pairing was removed.
+ function missingPairStatus(){return isStandaloneContext()?'not-configured':'context-isolated';}
  function statusFor(flow){
   if(APP_ID==='gaming'){
    if(flow!=='gaming-nexus'||!window.GamingNexusSync?.observation)return 'unavailable';
-   return window.GamingNexusSync.observation().then(s=>s.paired?'ok':'not-configured');
+   return window.GamingNexusSync.observation().then(s=>s.paired?'ok':missingPairStatus());
   }
   if(APP_ID==='nexus'){
    if(flow==='gaming-nexus'&&window.NexusGamingImport?.observation){
@@ -90,7 +97,8 @@
   title.textContent='LINK · '+(req.action==='inspect'?'Vérifier la connexion':'Synchroniser');
   const detail=document.createElement('p');
   detail.textContent='Liaison '+req.flow.replaceAll('-',' → ')+
-   '. Cette opération reste dans '+APP_ID+' et nécessite ton accord. Aucun secret ne sera transmis à LINK.';
+   '. Cette opération reste dans '+APP_ID+' et nécessite ton accord. Aucun secret ne sera transmis à LINK.'+
+   (isStandaloneContext()?'':' Attention : ce navigateur peut utiliser un stockage différent de la PWA installée.');
   const feedback=document.createElement('p');feedback.setAttribute('role','status');
   const actions=document.createElement('div');actions.className='link-bridge-actions';
   const accept=document.createElement('button');accept.type='button';
@@ -107,7 +115,7 @@
    let status='unavailable';
    try{status=req.action==='inspect'?await statusFor(req.flow):await execute(req.flow,req.step);}
    catch(e){status='error'}
-   if(!['ok','not-configured','locked','unavailable','error'].includes(status))status='error';
+   if(!['ok','not-configured','context-isolated','locked','unavailable','error'].includes(status))status='error';
    feedback.textContent='Retour à LINK…';
    returnToLink(req,status);
   });
