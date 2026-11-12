@@ -317,3 +317,13 @@ body::before{
 .g7-auto strong,.g7-auto small{display:block}
 .g7-auto strong{font-size:12px;color:var(--ink)}
 .g7-auto small{font-size:11px;color:var(--muted)}
+
+/* LINK: only a consent dialog invoked from the central app. No permanent settings UI. */
+dialog.link-bridge-dialog{box-sizing:border-box;width:min(92vw,420px);max-width:420px;max-height:calc(100dvh - 48px);overflow:auto;border:1px solid #5d93ae;border-radius:21px;background:#132236;color:#edf6fe;padding:24px 20px 20px;box-shadow:0 22px 72px rgba(0,0,0,.45);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;line-height:1.55}
+dialog.link-bridge-dialog::backdrop{background:rgba(0,8,17,.76);backdrop-filter:blur(4px)}
+.link-bridge-dialog h3{color:#e2f6ff;font-weight:800;font-size:20px;line-height:1.2;margin:0 0 12px}
+.link-bridge-dialog p{color:#adc4d6;font-size:13px;margin:10px 0 18px}
+.link-bridge-actions{display:grid;gap:10px}
+.link-bridge-actions button{border:1px solid #54839d;border-radius:11px;background:#72d8ef;color:#0a1b26;font:700 13px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;min-height:44px;padding:11px;white-space:normal}
+.link-bridge-actions button.link-bridge-secondary{background:#26394c;color:#e3ecf4;border-color:#4d6880}
+.link-bridge-actions button:disabled{opacity:.55}
