@@ -64,7 +64,7 @@
    if(s!=='ok')return s;
    if(!window.GamingNexusSync?.send)return 'unavailable';
    const r=await window.GamingNexusSync.send({quiet:false});
-   return r?.busy?'unavailable':r?.errors>0?'error':'ok';
+   return r?.busy?'unavailable':(r?.errors>0||r?.remaining>0)?'error':'ok';
   }
   if(APP_ID==='nexus'&&flow==='gaming-nexus'&&step==='target'){
    const s=await statusFor(flow);
