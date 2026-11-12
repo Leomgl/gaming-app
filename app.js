@@ -550,7 +550,7 @@ function settings(){
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
  ${section('Connexions','Garde les liaisons actuelles et observe leur état dans LINK.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>${data.connections.length?'Gaming est jumelée à NEXUS. Seuls les tests de liaison sont actifs.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
  <div class="setting"><div><strong>LINK · Observateur</strong><p>Préparer un relevé technique local pour LINK, sans exposer les clés, les noms des jeux ou les achats.</p></div><button class="btn secondary small" data-action="link-observe">Observer</button></div>
- <div class="setting"><div><strong>LINK · Vérifier les événements</strong><p>Comparer les publications une par une grâce à des empreintes temporaires, sans transmettre les clés.</p></div><button class="btn secondary small" data-action="link-audit">Vérifier</button></div>
+ 
   <div class="setting"><div><strong>Notifications iPhone</strong><p>Mi-saison, J−14 et J−7, avec choix par pass.</p></div><button class="btn secondary small" data-action="push-settings">Configurer</button></div></div>`)}
  ${section('À propos','Gaming V0.7 · synchronisation NEXUS',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
@@ -800,7 +800,7 @@ document.addEventListener('click',async e=>{
  if(act==='link-test')return sendLinkTest();
  if(act==='link-sync')return window.GamingNexusSync?.panel?.();
   if(act==='link-observe')return window.GamingNexusSync?.observe?.();
- if(act==='link-audit')return window.GamingNexusSync?.auditPanel?.();
+ 
  if(act==='link-forget')return forgetLink();
  if(act==='view-game')return gameDetail(id);
  if(act==='find-cover')return window.GamingCovers?.find?.(id);
