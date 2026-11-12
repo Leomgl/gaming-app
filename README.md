@@ -93,3 +93,13 @@ Le transport n'a pas changé : envoi depuis Gaming via NEXUS LINK, éventuelleme
 **Validation nécessaire sur vrai iPhone** et avec les deux PWAs jumelées. Ne pas confondre réussite des tests statiques et déploiement Cloudflare : inspecter la version réellement servie par le Worker.
 
 Référence NEXUS : [Connect 2.0](https://github.com/Leomgl/nexus-app/blob/main/docs/CONNECT-V019.md).
+
+## LINK — observateur pilote V0.12 (12/11/2026)
+
+Une entrée indépendante **Réglages → LINK · Observateur** permet de fabriquer volontairement un état technique de Gaming → Nexus pour LINK V0.3, sans utiliser/modifier l'ancien canal NEXUS LINK. Cet état est calculé **en lecture seule** par `GamingNexusSync.preview()`. Il contient seulement : jumelage configuré oui/non, synchronisation auto activée oui/non, nombre de scopes, propositions possibles/à réémettre et date locale de dernière publication ; pas de code NXL1, ID de paire, seed, noms de jeux, prix ou payloads. Les compteurs ne prouvent pas la réception dans Nexus.
+
+Le bouton **Ouvrir le diagnostic dans LINK** passe le code dans le fragment `#observe=LDO1...` (pas en requête serveur) ; **Copier le code** permet de le coller manuellement dans LINK → Diagnostic si iOS ouvre Safari plutôt que la PWA. LINK valide et stocke localement ce relevé, qui peut être effacé.
+
+Le canal Gaming → Nexus d'origine reste inchangé : mêmes scopes, clés, identifiants, propositions et traitements push. Worker Cloudflare Gaming recomposé via `scripts/build.mjs`, testé avec le module `backend/push.js` et redéployé en conservant les bindings D1 `DB`, secrets `PUSH_RATE_PEPPER` / `VAPID_PRIVATE_JWK`, variable `VAPID_PUBLIC_KEY` et cron `*/5 * * * *`. Version Cloudflare `e845fa6f-e43e-40ee-8bdc-87e7bf9c2a95` servie à 100 %.
+
+Tests GitHub Actions **4/4 et build/check réussis** : https://github.com/Leomgl/gaming-app/actions/runs/43307457130 . La recette physique iPhone **Gaming → LINK** reste à faire ; ce nouvel observateur n'est pas une synchronisation en temps réel ni une migration de jumelage.
