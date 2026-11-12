@@ -103,3 +103,11 @@ Le bouton **Ouvrir le diagnostic dans LINK** passe le code dans le fragment `#ob
 Le canal Gaming → Nexus d'origine reste inchangé : mêmes scopes, clés, identifiants, propositions et traitements push. Worker Cloudflare Gaming recomposé via `scripts/build.mjs`, testé avec le module `backend/push.js` et redéployé en conservant les bindings D1 `DB`, secrets `PUSH_RATE_PEPPER` / `VAPID_PRIVATE_JWK`, variable `VAPID_PUBLIC_KEY` et cron `*/5 * * * *`. Version Cloudflare `e845fa6f-e43e-40ee-8bdc-87e7bf9c2a95` servie à 100 %.
 
 Tests GitHub Actions **4/4 et build/check réussis** : https://github.com/Leomgl/gaming-app/actions/runs/43307457130 . La recette physique iPhone **Gaming → LINK** reste à faire ; ce nouvel observateur n'est pas une synchronisation en temps réel ni une migration de jumelage.
+
+## LINK V0.5 : audit événementiel (12/11/2026)
+
+Réglages → **LINK · Vérifier les événements** prépare un rapport ponctuel `LDA1` depuis la **seule Outbox Gaming** de la paire Nexus active. Chaque identifiant de message est d'abord transformé en `sourceKey` par le protocole NXL1, puis en une nouvelle empreinte **HMAC 96 bits**, cloisonnée par jour UTC et clé de paire. Le rapport embarque seulement une empreinte de paire quotidienne, le jour et les empreintes temporaires/révisions, **jamais** `seed`, identifiant de paire, `entityId`, `sourceKey`, empreinte de payload, titre, prix ou contenu.
+
+Le code est partagé uniquement sur action de l'utilisateur via fragment `#audit=` ou copier/coller et reste local dans LINK. Aucun message n'est envoyé, reçu ou acquitté pendant cette action. Les trois fonctions préexistantes d'envoi, de synchronisation automatique et de push continuent de fonctionner comme avant.
+
+Cloudflare Worker recompilé avec le module `link-audit.js` et le backend push historique ; bindings **DB**, **PUSH_RATE_PEPPER**, **VAPID_PRIVATE_JWK**, **VAPID_PUBLIC_KEY** et cron `*/5 * * * *` vérifiés présents après livraison. Version `c3eca787-7949-4607-8764-f0353eb5f37e` à 100 %. CI 9/9 : https://github.com/Leomgl/gaming-app/actions/runs/43316570763 . Recette Safari iPhone spécifique à V0.5 encore requise.
