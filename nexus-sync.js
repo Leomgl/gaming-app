@@ -120,7 +120,59 @@ async function panel(){
  });
  document.getElementById('g7-refresh')?.addEventListener('click',()=>panel());
 }
+const LINK_OBSERVER_URL='https://link-app.q9pfwtztsc.workers.dev/';
+async function observation(){
+ if(!adapter)throw Error('Gaming n’est pas encore prêt.');
+ const p=pair();
+ // Preview is computed in Gaming only. No packet, key, name, amount or pair ID leaves this app.
+ const state=p?await preview():{total:0,changed:0};
+ const outbox=Array.isArray(adapter.state().linkOutbox)?adapter.state().linkOutbox:[];
+ const dates=p?outbox.filter(x=>x?.pairId===p.id&&typeof x.sentAt==='string')
+   .map(x=>Date.parse(x.sentAt)).filter(x=>Number.isFinite(x)&&x<=Date.now()+300000):[];
+ const lastPublishedAt=dates.length?new Date(Math.max(...dates)).toISOString():null;
+ return {
+  schema:'link.observation.v1',
+  contractId:'gaming-nexus',app:'gaming',createdAt:new Date().toISOString(),
+  paired:!!p,autoEnabled:auto(),
+  possible:state.total,pending:state.changed,scopeCount:p?.scopes?.length||0,
+  lastPublishedAt
+ };
+}
+function encodeObservation(report){
+ // ASCII-only verified report. No invocation of the E2EE pairing APIs or relay.
+ const raw=JSON.stringify(report),bytes=new TextEncoder().encode(raw);
+ let binary='';for(const value of bytes)binary+=String.fromCharCode(value);
+ return 'LDO1.'+btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function observe(){
+ if(!adapter)return;
+ let report,code;
+ try{report=await observation();code=encodeObservation(report);}
+ catch(err){adapter.toast('Diagnostic impossible : '+text(err.message,80));return;}
+ const shareLink=LINK_OBSERVER_URL+'#observe='+encodeURIComponent(code);
+ const content='<div class="g7-sync">'
+ +'<div class="notice">Ce relevé technique est volontaire et local. Il ne contient ni clé de connexion, ni identité de jumelage, ni nom de jeu, ni achat. LINK ne reçoit aucune donnée sur son serveur.</div>'
+ +'<div class="g7-stats"><div><strong>'+report.possible+'</strong><small>propositions possibles</small></div>'
+ +'<div><strong>'+report.pending+'</strong><small>à actualiser</small></div></div>'
+ +'<p class="hint">Liaison Gaming → Nexus : '+(report.paired?'jumelage configuré':'aucun jumelage')+' · '+report.scopeCount+' autorisation(s). Ces chiffres proviennent uniquement de Gaming : ils ne prouvent pas la réception dans Nexus.</p>'
+ +'<div class="formactions"><a class="btn" target="_blank" rel="noopener noreferrer" href="'+shareLink+'">Ouvrir le diagnostic dans LINK ↗</a></div>'
+ +'<label class="field">Code de diagnostic (alternative manuelle)<textarea class="field-input" id="gaming-link-observe-code" readonly rows="5" aria-label="Code technique anonyme">'+code+'</textarea></label>'
+ +'<div class="formactions"><button type="button" class="btn secondary" id="gaming-link-observe-copy">Copier le code</button></div>'
+ +'<p class="hint">Si iOS ouvre LINK dans Safari plutôt que dans la PWA, copie ce code et colle-le dans LINK → Diagnostic. Aucun réglage existant n’est modifié.</p></div>';
+ adapter.modal('LINK · Observateur Gaming',content);
+ const btn=document.getElementById('gaming-link-observe-copy');
+ btn?.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(code);adapter.toast('Diagnostic copié. Colle-le dans LINK.');}
+  catch{
+   const area=document.getElementById('gaming-link-observe-code');area?.select();
+   try{
+    if(!document.execCommand?.('copy'))throw Error('COPY_NOT_SUPPORTED');
+    adapter.toast('Diagnostic copié.');
+   }catch{adapter.toast('Sélectionne le code et utilise Copier.');}
+  }
+ });
+}
 function attach(model){adapter=model;window.addEventListener('online',queue);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)queue()});if(auto())queue()}
-window.GamingNexusSync=Object.freeze({attach,build,preview,send,panel,queue});
+window.GamingNexusSync=Object.freeze({attach,build,preview,send,panel,queue,observe,observation});
 })();
