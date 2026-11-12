@@ -172,7 +172,49 @@ async function observe(){
   }
  });
 }
+
+async function auditSnapshot(){
+ if(!window.LinkAudit)throw Error('Module de vérification LINK indisponible.');
+ const p=pair(),outbox=Array.isArray(adapter?.state()?.linkOutbox)?adapter.state().linkOutbox:[];
+ if(!p)return window.LinkAudit.snapshot(null,'gaming',[]);
+ if(!window.NexusLinkCore?.sourceKey)throw Error('Protocole de jumelage indisponible.');
+ const current=outbox.filter(x=>x?.pairId===p.id&&typeof x.entityId==='string'&&
+   Number.isSafeInteger(x.revision)&&x.revision>0&&x.revision<=1000000);
+ if(current.length>10000)throw Error('Trop de messages pour ce relevé.');
+ const rows=[];
+ for(const item of current){
+  const sourceKey=await window.NexusLinkCore.sourceKey(p,item.entityId);
+  rows.push({sourceKey,revision:item.revision});
+ }
+ return window.LinkAudit.snapshot(p,'gaming',rows);
+}
+async function auditPanel(){
+ if(!adapter)return;
+ let report,code;
+ try{report=await auditSnapshot();code=window.LinkAudit.encode(report);}
+ catch(e){adapter.toast('Vérification LINK : '+text(e.message,85));return;}
+ const href=LINK_OBSERVER_URL+'#audit='+encodeURIComponent(code);
+ const html='<div class="g7-sync">'+
+ '<div class="notice">Contrôle ponctuel des événements publiés vers Nexus. Les empreintes changent chaque jour UTC et dépendent de ta clé locale, sans jamais la transmettre. Ce relevé ne prouve pas un ACK distant.</div>'+
+ '<div class="g7-stats"><div><strong>'+report.total+'</strong><small>publications identifiées</small></div>'+
+ '<div><strong>'+report.events.length+'</strong><small>empreintes temporaires</small></div></div>'+
+ '<p class="hint">Jour de comparaison UTC : '+report.day+' · '+(report.limited?'Échantillon partiel : comparer uniquement les lignes présentes.':'Liste complète des publications conservées dans Gaming.')+
+ ' Génère le relevé Nexus le même jour pour comparer.</p>'+
+ '<div class="formactions"><a class="btn" target="_blank" rel="noopener noreferrer" href="'+href+'">Comparer dans LINK ↗</a></div>'+
+ '<label class="field">Code temporaire (alternative manuelle)<textarea class="field-input" id="gaming-link-audit-code" readonly rows="4" style="overflow-wrap:anywhere">'+code+'</textarea></label>'+
+ '<div class="formactions"><button type="button" class="btn secondary" id="gaming-link-audit-copy">Copier le code</button></div>'+
+ '<p class="hint">Si iOS ouvre Safari, copie le code et colle-le dans LINK → Diagnostic → Concordance des événements. Aucun événement n’est envoyé ni modifié.</p></div>';
+ adapter.modal('LINK · Concordance des événements',html);
+ document.getElementById('gaming-link-audit-copy')?.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(code);adapter.toast('Code temporaire copié.');}
+  catch{
+   const el=document.getElementById('gaming-link-audit-code');el?.select();
+   try{if(!document.execCommand?.('copy'))throw Error('COPY_UNSUPPORTED');adapter.toast('Code copié.')}
+   catch{adapter.toast('Sélectionne le code puis utilise Copier.')}
+  }
+ });
+}
 function attach(model){adapter=model;window.addEventListener('online',queue);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)queue()});if(auto())queue()}
-window.GamingNexusSync=Object.freeze({attach,build,preview,send,panel,queue,observe,observation});
+window.GamingNexusSync=Object.freeze({attach,build,preview,send,panel,queue,observe,observation,auditSnapshot,auditPanel});
 })();
