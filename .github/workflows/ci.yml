@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: "22"
       - name: Test observer without private data
-        run: node --test tests/link-observer.test.mjs
+        run: node --test tests/*.test.mjs
       - name: Build Cloudflare Worker bundle
         run: npm run build
       - name: Validate frontend and Worker
