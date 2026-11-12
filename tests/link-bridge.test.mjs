@@ -6,7 +6,7 @@ import vm from "node:vm";
 const source=fs.readFileSync(new URL("../link-bridge.js",import.meta.url),"utf8");
 const APP_ID="gaming";
 const encode=x=>btoa(JSON.stringify(x)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
-function createHarness(action="inspect",overrides={}){
+function createHarness(action="inspect",overrides={},paired=true,standalone=false){
  const request={schema:"link.management.v1",id:"LocalReqToken123",flow:"gaming-nexus",app:APP_ID,
   action,step:APP_ID==="gaming"?"source":"target",...overrides};
  const nodes=[],callbacks={},location={
@@ -24,9 +24,10 @@ function createHarness(action="inspect",overrides={}){
   addEventListener(){}};
  let sent=0,received=0;
  const context={document,location,window:{addEventListener(){},
-   GamingNexusSync:{observation:async()=>({paired:true}),send:async()=>{sent++;return{count:2,errors:0}}},
-   NexusGamingImport:{observation:()=>({paired:true}),synchronize:async()=>{received++;return{received:2}}}
-  },TextEncoder,TextDecoder,btoa,atob,Date};
+   matchMedia:()=>({matches:standalone}),
+   GamingNexusSync:{observation:async()=>({paired}),send:async()=>{sent++;return{count:2,errors:0}}},
+   NexusGamingImport:{observation:()=>({paired}),synchronize:async()=>{received++;return{received:2}}}
+  },navigator:{standalone},TextEncoder,TextDecoder,btoa,atob,Date};
  vm.runInNewContext(source,context,{filename:"link-bridge.js"});
  return{nodes,callbacks,location,run:async()=>{
   const list=callbacks.click||[];
@@ -67,4 +68,19 @@ test("forged app or forbidden flow is ignored",()=>{
  assert.equal(bad.nodes.length,0);
  const forbidden=createHarness("sync",{flow:"rituel-garage"});
  assert.equal(forbidden.nodes.length,0);
+});
+
+test("Safari-like isolated storage never claims the existing PWA pairing was deleted",async()=>{
+ const h=createHarness("inspect",{},false,false);
+ await h.run();
+ const raw=h.location.assigned.split("#link-return=")[1];
+ const reply=JSON.parse(atob(raw.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-raw.length%4)%4)));
+ assert.equal(reply.status,"context-isolated");
+ assert.equal(h.getSent(),0);
+ assert.equal(h.getReceived(),0);
+ const standalone=createHarness("inspect",{},false,true);
+ await standalone.run();
+ const b=standalone.location.assigned.split("#link-return=")[1];
+ const result=JSON.parse(atob(b.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-b.length%4)%4)));
+ assert.equal(result.status,"not-configured");
 });
