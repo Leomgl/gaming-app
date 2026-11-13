@@ -29,12 +29,16 @@ test("Gaming CSP/cache include only HTTPS hub and preserve all paused push routi
  assert.match(readFileSync(new URL("../backend/push.js",import.meta.url),"utf8"),/PUSH_TEMPORARILY_PAUSED/);
 });
 
-test("Gaming accepts only destination-labeled Gaming invitations before network calls",()=>{
+test("Gaming rejects Nexus-tagged codes before any network request",async()=>{
  let io=0;
- const scope=vm.createContext({window:{},navigator:{},console,TextEncoder,TextDecoder,fetch(){io++;throw Error("NETWORK")},indexedDB:{}});
+ const scope=vm.createContext({window:{},navigator:{userAgent:"iPhone",standalone:true},
+  console,TextEncoder,TextDecoder,
+  fetch:async()=>{io++;return {ok:false,json:async()=>({error:"INVITATION_REJECTED"})}},
+  indexedDB:{}});
  vm.runInContext(adapter,scope);
  const value="d".repeat(64);
- assert.equal(vm.runInContext('readHubInvitation("LHI1.gaming.'+value+'")',scope),value);
- assert.throws(()=>vm.runInContext('readHubInvitation("LHI1.nexus.'+value+'")',scope),/CODE_DESTINÉ_À_NEXUS/);
+ await assert.rejects(scope.window.LinkHubAdapter.enroll("LHI1.nexus."+value),/CODE_DESTINÉ_À_NEXUS/);
  assert.equal(io,0);
+ await assert.rejects(scope.window.LinkHubAdapter.enroll("LHI1.gaming."+value),/INVITATION_REFUSÉE_GAMING/);
+ assert.equal(io,1);
 });
