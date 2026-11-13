@@ -7,7 +7,7 @@ const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
 const sw=readFileSync(new URL("../sw.js",import.meta.url),"utf8");
 test("Gaming LINK adapter initializes without network reads, polling or altering local data",()=>{
  let io=0;
- const context={window:{},navigator:{},console,
+ const context={window:{},navigator:{},console,TextEncoder,TextDecoder,
   fetch(){io++;throw Error("UNEXPECTED_NETWORK")},
   indexedDB:{open(){io++;throw Error("UNEXPECTED_STORAGE")}},
   crypto:{getRandomValues(){throw Error("UNEXPECTED_RANDOM")}}};
