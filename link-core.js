@@ -11,6 +11,12 @@
   return Uint8Array.from(raw,c=>c.charCodeAt(0));
  };
  const hex=bytes=>[...bytes].map(x=>x.toString(16).padStart(2,'0')).join('');
+ async function derive(seed,label){
+  const key=await crypto.subtle.importKey('raw',fromB64(seed),'HKDF',false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',
+   salt:toBytes('nexus-link-v1'),info:toBytes('nexus-link-v1/'+label)},key,256);
+  return new Uint8Array(bits);
+ }
  // Pairing seeds are generated on-device. LINK transports ciphertext; it never
  // requires a record in the retired NEXUS/Santé relay or a server-side verifier.
   function validatePair(pair){
