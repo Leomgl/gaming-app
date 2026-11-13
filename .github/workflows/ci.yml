@@ -26,5 +26,5 @@ jobs:
           grep -q "link-audit.js?v=0120" worker.mjs
           grep -q "deliverDue" worker.mjs
           grep -q 'app.js?v=0121' worker.mjs
-          grep -q 'nexus-sync.js?v=0131' worker.mjs\n          grep -q 'link-hub-bus.js?v=0133' worker.mjs
+          grep -q 'nexus-sync.js?v=0132' worker.mjs\n          grep -q 'link-hub-bus.js?v=0133' worker.mjs
           grep -q 'link-hub-adapter.js?v=0132' worker.mjs
