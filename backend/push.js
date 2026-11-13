@@ -69,6 +69,8 @@ export async function pushRouter(request,env){
  const origin=request.headers.get('origin');
  if(origin&&origin!=='https://gaming-app.q9pfwtztsc.workers.dev')return json({ok:false,error:'ORIGIN_DENIED'},403);
  const path=new URL(request.url).pathname;
+ // EMERGENCY 2026-11-13: pause push scheduling to protect free D1 write quota.
+ if(path==='/api/v1/gaming-push/schedule')return json({ok:false,error:'PUSH_TEMPORARILY_PAUSED'},503);
  if(path==='/api/v1/gaming-push/config'&&request.method==='GET')
   return json({ok:true,ready:!!(env.VAPID_PUBLIC_KEY&&env.VAPID_PRIVATE_JWK&&env.DB),publicKey:env.VAPID_PUBLIC_KEY||null,intervalMinutes:5});
  if(request.method!=='POST')return json({ok:false,error:'METHOD_NOT_ALLOWED'},405);
