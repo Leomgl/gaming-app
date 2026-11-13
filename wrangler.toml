@@ -12,8 +12,8 @@ database_id = "cd514eff-0a5c-4679-8b5e-db0e08577db3"
 [vars]
 VAPID_PUBLIC_KEY = "BFywWPGSV7k2iezNlAH5Zdxd74vIllQuOGCQvL-VGFSNliprVx6z2FK416icBVieECPZ4GmQVSG4Fp2xF93P6B0"
 
-[triggers]
-crons = ["*/5 * * * *"]
+# Legacy push cron intentionally disabled pending LINK notification center (#32).
+# No scheduled trigger: notifications remain suspended.
 
 [secrets]
 required = ["VAPID_PRIVATE_JWK", "PUSH_RATE_PEPPER"]
