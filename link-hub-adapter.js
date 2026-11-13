@@ -325,10 +325,14 @@ function mount(el){
  let busy=false;
  async function run(fn){
   if(busy)return;busy=true;enrollButton.disabled=true;syncButton.disabled=true;
-  try{await fn()}catch(e){
-   status.textContent="LINK : "+String(e?.message||"ERREUR").slice(0,90)+
+  let feedback="";
+  try{await fn();feedback=status.textContent}catch(e){
+   feedback="LINK : "+String(e?.message||"ERREUR").slice(0,90)+
     " · aucune donnée supprimée.";
-  }finally{busy=false;await refresh().catch(()=>{});enrollButton.disabled=false}
+  }finally{
+   busy=false;await refresh().catch(()=>{});enrollButton.disabled=false;
+   if(feedback)status.textContent=feedback;
+  }
  }
  enrollButton.addEventListener("click",()=>void run(async()=>{
   await enroll(input.value);
