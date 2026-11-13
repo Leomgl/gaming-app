@@ -135,8 +135,9 @@ function queue(force=false){
   timer=null;lastHubAttempt=Date.now();
   try{await sendHub({quiet:true})}
   catch(error){
-   console.warn('Gaming LINK Hub différé',error?.message||error);
-   try{await send({quiet:true})}catch(e){console.warn('Lien Gaming ancien relais',e?.message||e)}
+   // LINK is the automatic route. Never write to the old relay silently:
+   // an outage must remain retryable through LINK or the explicit rescue action.
+   console.warn('Gaming LINK Hub différé (aucun repli automatique)',error?.message||error);
   }
  },900);
 }
@@ -150,8 +151,11 @@ async function panel(){
  <p class="hint">Autorisations de ton jumelage : ${p.scopes.map(x=>adapter.escape(x)).join(', ')}. Pour les modifier, révoque le lien depuis NEXUS et jumelle à nouveau.</p>
  <label class="g7-auto"><input id="g7-auto" type="checkbox" ${auto()?'checked':''}>
  <span><strong>Synchronisation automatique (facultative)</strong><small>Envoie les nouveautés quand Gaming est ouverte et connectée.</small></span></label>
- <div class="formactions"><button class="btn" id="g7-send">Envoyer maintenant</button>
+ <div class="formactions"><button class="btn" id="g7-send">Envoyer via LINK</button>
  <button class="btn secondary" id="g7-refresh">Actualiser</button></div>
+ <details class="g7-link-legacy"><summary>Ancien relais · dépannage uniquement</summary>
+ <p class="hint">À utiliser seulement si le centre LINK est indisponible. Cet envoi n'est jamais automatique.</p>
+ <div class="formactions"><button class="btn secondary" id="g7-send-legacy">Envoyer via l'ancien relais</button></div></details>
  <p class="hint">Les changements de date ou de montant sont proposés à nouveau. Supprimer un élément dans Gaming ne supprime rien de NEXUS.</p>
  <div id="gaming-link-hub-controls"></div></div>`);
  window.LinkHubAdapter?.attach?.({pair:()=>pair(),preview:async()=>{const view=await preview();
@@ -159,7 +163,11 @@ async function panel(){
  window.LinkHubAdapter?.mount?.(document.getElementById('gaming-link-hub-controls'));
  document.getElementById('g7-auto')?.addEventListener('change',e=>{setAuto(e.target.checked);if(e.target.checked)queue();});
  document.getElementById('g7-send')?.addEventListener('click',async e=>{
-  e.currentTarget.disabled=true;try{try{await sendHub()}catch{await send()}await panel()}catch(err){alert(err.message);e.currentTarget.disabled=false}
+  e.currentTarget.disabled=true;try{await sendHub();await panel()}catch(err){alert('LINK indisponible : '+err.message);e.currentTarget.disabled=false}
+ });
+ document.getElementById('g7-send-legacy')?.addEventListener('click',async e=>{
+  e.currentTarget.disabled=true;
+  try{await send();await panel()}catch(err){alert('Secours historique : '+err.message);e.currentTarget.disabled=false}
  });
  document.getElementById('g7-refresh')?.addEventListener('click',()=>panel());
 }
