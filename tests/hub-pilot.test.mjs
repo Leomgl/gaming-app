@@ -28,3 +28,13 @@ test("Gaming CSP/cache include only HTTPS hub and preserve all paused push routi
  assert.match(readFileSync(new URL("../scripts/build.mjs",import.meta.url),"utf8"),/https:\/\/link-app\.q9pfwtztsc\.workers\.dev/);
  assert.match(readFileSync(new URL("../backend/push.js",import.meta.url),"utf8"),/PUSH_TEMPORARILY_PAUSED/);
 });
+
+test("Gaming accepts only destination-labeled Gaming invitations before network calls",()=>{
+ let io=0;
+ const scope=vm.createContext({window:{},navigator:{},console,TextEncoder,TextDecoder,fetch(){io++;throw Error("NETWORK")},indexedDB:{}});
+ vm.runInContext(adapter,scope);
+ const value="d".repeat(64);
+ assert.equal(vm.runInContext('readHubInvitation("LHI1.gaming.'+value+'")',scope),value);
+ assert.throws(()=>vm.runInContext('readHubInvitation("LHI1.nexus.'+value+'")',scope),/CODE_DESTINÉ_À_NEXUS/);
+ assert.equal(io,0);
+});
