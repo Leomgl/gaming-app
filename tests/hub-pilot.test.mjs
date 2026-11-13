@@ -23,7 +23,7 @@ test("Gaming LINK adapter initializes without network reads, polling or altering
 });
 test("Gaming CSP/cache include only HTTPS hub and preserve all paused push routines",()=>{
  assert.match(html,/link-hub-adapter\.js\?v=0132/);
- assert.match(sw,/gaming-v0\.20-link-settings/);
+ assert.match(sw,/gaming-v0\.21-link-only-auto/);
  assert.match(sw,/link-hub-adapter\.js\?v=0132/);
  assert.match(readFileSync(new URL("../scripts/build.mjs",import.meta.url),"utf8"),/https:\/\/link-app\.q9pfwtztsc\.workers\.dev/);
  assert.match(readFileSync(new URL("../backend/push.js",import.meta.url),"utf8"),/PUSH_TEMPORARILY_PAUSED/);
