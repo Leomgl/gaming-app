@@ -30,6 +30,6 @@ test('Gaming garde une voie explicite de secours et renouvelle son cache iPhone'
  assert.match(source,/getElementById\('g7-send-legacy'\)/);
  assert.match(source,/try\{await sendHub\(\);await panel\(\)\}/);
  assert.doesNotMatch(source,/try\{await sendHub\(\)\}catch\{await send\(\)\}/);
- assert.match(html,/nexus-sync\.js\?v=0132/);
- assert.match(sw,/gaming-v0\.21-link-only-auto/);
+ assert.match(html,/nexus-sync\.js\?v=0133/);
+ assert.match(sw,/gaming-v0\.22-hub-only/);
 });
