@@ -69,3 +69,16 @@ test("legacy sync and consent paths remain available",()=>{
  assert.equal(typeof b.api.panel,"function");
  assert.equal(typeof b.api.queue,"function");
 });
+
+test("LINK devient l'entrée principale sans supprimer les actions de compatibilité",()=>{
+ const app=fs.readFileSync(new URL("../app.js",import.meta.url),"utf8");
+ const html=fs.readFileSync(new URL("../index.html",import.meta.url),"utf8");
+ const sw=fs.readFileSync(new URL("../sw.js",import.meta.url),"utf8");
+ assert.match(app,/href="https:\/\/link-app\.q9pfwtztsc\.workers\.dev\//);
+ assert.match(app,/g4-legacy-link/);
+ assert.match(app,/data-action="link-panel"/);
+ assert.match(app,/data-action="link-observe"/);
+ assert.match(app,/data-action="push-settings"/);
+ assert.match(html,/app\.js\?v=0121/);
+ assert.match(sw,/app\.js\?v=0121/);
+});
