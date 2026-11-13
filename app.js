@@ -531,7 +531,7 @@ function tracking(){
  <p class="sub">Organise les saisons, DLC, sorties et échéances, jeu par jeu.</p>
  <div class="tabs g4-main-tabs">${[['passes','Pass de combat'],['calendar','Calendrier'],['all','Tout le suivi']].map(([id,label])=>`<button class="${trackingTab===id?'active':''}" data-action="tracking-tab" data-tab="${id}">${label}</button>`).join('')}</div>
  ${content}
- <p class="hint g4-link-note">NEXUS LINK reste en mode test. Les opérations financières et événements ne sont pas transférés automatiquement.</p>`;
+ <p class="hint g4-link-note">Les propositions envoyées à NEXUS passent par LINK pour examen. Aucun achat n'est inscrit au budget sans validation.</p>`;
 }
 function settings(){
  return `<div class="eyebrow">CONTRÔLE & SÉCURITÉ</div><h1 class="title">Réglages<span style="color:var(--accent)">.</span></h1>
@@ -548,9 +548,10 @@ function settings(){
  <div class="setting"><div><strong>Exporter mes données</strong><p>Une sauvegarde JSON de tous les jeux, événements et supports.</p></div><button class="btn secondary small" data-action="export">Export</button></div>
  <div class="setting"><div><strong>Importer un JSON</strong><p>Remplace les données locales après confirmation.</p></div><button class="btn secondary small" data-action="import">Import</button></div>
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
- ${section('Connexions','Garde les liaisons actuelles et observe leur état dans LINK.',`<div class="card"><div class="setting"><div><strong>NEXUS LINK</strong><p>${data.connections.length?'Gaming est jumelée à NEXUS. Seuls les tests de liaison sont actifs.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
+ ${section('Connexions','LINK centralise le contrôle des échanges. Les anciens jumelages restent disponibles en secours.',`<div class="card"><div class="setting"><div><strong>Centre LINK</strong><p>Permissions, connexions et diagnostics dans une seule application.</p></div><a class="btn secondary small" href="https://link-app.q9pfwtztsc.workers.dev/" target="_blank" rel="noopener noreferrer">Gérer dans LINK</a></div><details class="g4-legacy-link"><summary class="hint">Ancien canal · dépannage et compatibilité</summary><div class="setting"><div><strong>Jumelage historique NEXUS</strong><p>${data.connections.length?'Gaming conserve son jumelage chiffré historique pour la compatibilité.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
  <div class="setting"><div><strong>LINK · Observateur</strong><p>Préparer un relevé technique local pour LINK, sans exposer les clés, les noms des jeux ou les achats.</p></div><button class="btn secondary small" data-action="link-observe">Observer</button></div>
  
+  </details>
   <div class="setting"><div><strong>Notifications iPhone</strong><p>Mi-saison, J−14 et J−7, avec choix par pass.</p></div><button class="btn secondary small" data-action="push-settings">Configurer</button></div></div>`)}
  ${section('À propos','Gaming V0.7 · synchronisation NEXUS',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
