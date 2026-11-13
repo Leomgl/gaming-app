@@ -113,7 +113,11 @@ async function panel(){
  <span><strong>Synchronisation automatique (facultative)</strong><small>Envoie les nouveautés quand Gaming est ouverte et connectée.</small></span></label>
  <div class="formactions"><button class="btn" id="g7-send">Envoyer maintenant</button>
  <button class="btn secondary" id="g7-refresh">Actualiser</button></div>
- <p class="hint">Les changements de date ou de montant sont proposés à nouveau. Supprimer un élément dans Gaming ne supprime rien de NEXUS.</p></div>`);
+ <p class="hint">Les changements de date ou de montant sont proposés à nouveau. Supprimer un élément dans Gaming ne supprime rien de NEXUS.</p>
+ <div id="gaming-link-hub-controls"></div></div>`);
+ window.LinkHubAdapter?.attach?.({pair:()=>pair(),preview:async()=>{const view=await preview();
+  return view.jobs.find(x=>x.scope==='installed_summary')||null;}});
+ window.LinkHubAdapter?.mount?.(document.getElementById('gaming-link-hub-controls'));
  document.getElementById('g7-auto')?.addEventListener('change',e=>{setAuto(e.target.checked);if(e.target.checked)queue();});
  document.getElementById('g7-send')?.addEventListener('click',async e=>{
   e.currentTarget.disabled=true;try{await send();await panel()}catch(err){alert(err.message);e.currentTarget.disabled=false}
