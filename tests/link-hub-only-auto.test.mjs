@@ -23,13 +23,13 @@ test('Gaming ne publie pas sur ancien relais si LINK échoue en auto',async()=>{
  assert.equal(legacyWrites,0,'aucun envoi automatique vers l’ancien relais');
  assert.equal(typeof window.GamingNexusSync.send,'function','envoi historique manuel préservé');
 });
-test('Gaming garde une voie explicite de secours et renouvelle son cache iPhone',()=>{
+test('Gaming coupe le secours historique et renouvelle son cache iPhone',()=>{
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
- assert.match(source,/id="g7-send-legacy"/);
- assert.match(source,/getElementById\('g7-send-legacy'\)/);
+ assert.doesNotMatch(source,/g7-send-legacy/);
+ assert.match(source,/id="g7-send"/);
  assert.match(source,/try\{await sendHub\(\);await panel\(\)\}/);
  assert.doesNotMatch(source,/try\{await sendHub\(\)\}catch\{await send\(\)\}/);
- assert.match(html,/nexus-sync\.js\?v=0132/);
- assert.match(sw,/gaming-v0\.21-link-only-auto/);
+ assert.match(html,/nexus-sync\.js\?v=0133/);
+ assert.match(sw,/gaming-v0\.22-hub-only/);
 });

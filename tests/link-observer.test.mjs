@@ -62,7 +62,7 @@ test("observer handoff is only a local link fragment with redacted information",
  for(const leak of ["SENSITIVE-SEED", "SENSITIVE-PAIR-ID", "SECRET_GAME_ID", "Secret game in library"])
   assert.doesNotMatch(html,new RegExp(leak));
 });
-test("legacy sync and consent paths remain available",()=>{
+test("LINK sync and consent paths remain available",()=>{
  const b=boot();
  assert.equal(typeof b.api.preview,"function");
  assert.equal(typeof b.api.send,"function");
@@ -75,10 +75,10 @@ test("LINK devient l'entrée principale sans supprimer les actions de compatibil
  const html=fs.readFileSync(new URL("../index.html",import.meta.url),"utf8");
  const sw=fs.readFileSync(new URL("../sw.js",import.meta.url),"utf8");
  assert.match(app,/href="https:\/\/link-app\.q9pfwtztsc\.workers\.dev\//);
- assert.match(app,/g4-legacy-link/);
+ assert.doesNotMatch(app,/g4-legacy-link/);
  assert.match(app,/data-action="link-panel"/);
  assert.match(app,/data-action="link-observe"/);
  assert.match(app,/data-action="push-settings"/);
- assert.match(html,/app\.js\?v=0121/);
- assert.match(sw,/app\.js\?v=0121/);
+ assert.match(html,/app\.js\?v=0122/);
+ assert.match(sw,/app\.js\?v=0122/);
 });

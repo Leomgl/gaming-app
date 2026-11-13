@@ -548,11 +548,15 @@ function settings(){
  <div class="setting"><div><strong>Exporter mes données</strong><p>Une sauvegarde JSON de tous les jeux, événements et supports.</p></div><button class="btn secondary small" data-action="export">Export</button></div>
  <div class="setting"><div><strong>Importer un JSON</strong><p>Remplace les données locales après confirmation.</p></div><button class="btn secondary small" data-action="import">Import</button></div>
  <div class="setting"><div><strong>Corbeille</strong><p>${data.trash.length} élément(s) récupérable(s).</p></div><button class="btn secondary small" data-action="trash">Voir</button></div></div>`)}
- ${section('Connexions','LINK centralise le contrôle des échanges. Les anciens jumelages restent disponibles en secours.',`<div class="card"><div class="setting"><div><strong>Centre LINK</strong><p>Permissions, connexions et diagnostics dans une seule application.</p></div><a class="btn secondary small" href="https://link-app.q9pfwtztsc.workers.dev/" target="_blank" rel="noopener noreferrer">Gérer dans LINK</a></div><details class="g4-legacy-link"><summary class="hint">Ancien canal · dépannage et compatibilité</summary><div class="setting"><div><strong>Jumelage historique NEXUS</strong><p>${data.connections.length?'Gaming conserve son jumelage chiffré historique pour la compatibilité.':'Aucune connexion active. Crée un jumelage depuis les réglages de NEXUS.'}</p></div><button class="btn secondary small" data-action="link-panel">${data.connections.length?'Tester':'Jumeler'}</button></div>
- <div class="setting"><div><strong>LINK · Observateur</strong><p>Préparer un relevé technique local pour LINK, sans exposer les clés, les noms des jeux ou les achats.</p></div><button class="btn secondary small" data-action="link-observe">Observer</button></div>
- 
-  </details>
-  <div class="setting"><div><strong>Notifications iPhone</strong><p>Mi-saison, J−14 et J−7, avec choix par pass.</p></div><button class="btn secondary small" data-action="push-settings">Configurer</button></div></div>`)}
+ ${section('Connexions','Les échanges chiffrés passent uniquement par LINK.',`<div class="card">
+ <div class="setting"><div><strong>Centre LINK</strong><p>Autorisations, diagnostics et acheminement des messages.</p></div>
+ <a class="btn secondary small" href="https://link-app.q9pfwtztsc.workers.dev/" target="_blank" rel="noopener noreferrer">Gérer dans LINK</a></div>
+ <div class="setting"><div><strong>Clé de jumelage Nexus</strong><p>${data.connections.length?'Clé chiffrée locale configurée.':'Associe une clé générée dans Nexus.'}</p></div>
+ <button class="btn secondary small" data-action="link-panel">${data.connections.length?'Gérer':'Jumeler'}</button></div>
+ <div class="setting"><div><strong>Diagnostic LINK</strong><p>Un relevé sans secrets, noms de jeux ni achats.</p></div>
+ <button class="btn secondary small" data-action="link-observe">Observer</button></div>
+ <div class="setting"><div><strong>Notifications iPhone</strong><p>Mi-saison, J−14 et J−7, avec choix par pass.</p></div>
+ <button class="btn secondary small" data-action="push-settings">Configurer</button></div></div>`)}
  ${section('À propos','Gaming V0.7 · synchronisation NEXUS',`<div class="card"><p class="hint">Aucun compte ni abonnement. Pas d'API PSN, pas de synchronisation automatique. iOS peut évincer les données d'un site : exporte régulièrement ton JSON, notamment avant toute migration de domaine ou désinstallation.</p></div>`)}`;
 }
 function render(){const pages={home,games,storage,tracking,settings};$('root').innerHTML=(pages[page]||home)();document.querySelectorAll('[data-nav]').forEach(b=>{b.classList.toggle('active',b.dataset.nav===page);b.setAttribute('aria-current',b.dataset.nav===page?'page':'false');});}
@@ -763,14 +767,12 @@ async function importBackup(file){
    });
    return;
   }
-  modal('NEXUS LINK · Gaming',`<div class="form">
-   <div class="notice">La connexion est configurée. Tu peux maintenant transmettre les propositions chiffrées à NEXUS pour validation. Aucune dépense ni date n’est créée automatiquement.</div>
-   <div class="setting"><div><strong>Connexion active</strong><p>${pair.scopes.length} permission(s) configurée(s) depuis NEXUS.</p></div><span class="chip">Chiffrée</span></div>
-   <div class="formactions"><button class="btn secondary" data-action="link-status">Vérifier</button>
-    <button class="btn" data-action="link-sync">Synchroniser avec NEXUS</button>
-    <button class="btn secondary" data-action="link-test">Envoyer un test</button>
-    <button class="btn danger" data-action="link-forget">Dissocier sur cet appareil</button></div>
-   <p class="hint">Pour révoquer le jumelage côté serveur, utilise NEXUS → Applications & connexions.</p></div>`);
+  modal('LINK · Gaming',`<div class="form">
+   <div class="notice">Clé chiffrée locale configurée. Gaming communique uniquement via LINK, après autorisation des portées dans Nexus.</div>
+   <div class="setting"><div><strong>Clé LINK prête</strong><p>${pair.scopes.length} permission(s) configurée(s).</p></div><span class="chip">Chiffrée</span></div>
+   <div class="formactions"><button class="btn" data-action="link-sync">Échanger via LINK</button>
+    <button class="btn danger" data-action="link-forget">Dissocier la clé locale</button></div>
+   <p class="hint">Pour changer les autorisations, dissocie les clés dans les deux apps puis crée un nouveau jumelage Nexus.</p></div>`);
  }
  async function linkStatus(){
   const pair=data.connections[0];if(!pair)return;
