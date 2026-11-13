@@ -1,7 +1,7 @@
 /* Gaming -> NEXUS LINK: encrypted consented proposals. v1. */
 'use strict';
 (()=>{
-let adapter=null,busy=false,timer=null;
+let adapter=null,busy=false,timer=null,lastHubAttempt=0;
 const K='gaming_link_auto_v1';
 const text=(x,n=140)=>String(x??'').trim().slice(0,n);
 const valid=d=>typeof d==='string'&&/^\d{4}-\d\d-\d\d$/.test(d)&&!isNaN(new Date(d+'T12:00:00').getTime());
@@ -98,9 +98,48 @@ async function send(opts={}){
   return {count,errors,remaining:Math.max(0,state.changed-count)};
  }finally{busy=false}
 }
-function queue(){if(!auto()||!pair())return;clearTimeout(timer);timer=setTimeout(()=>{
- timer=null;send({quiet:true}).catch(e=>console.warn('Lien Gaming',e.message));
-},4000)}
+async function sendHub(opts={}){
+ if(busy)return {busy:true};
+ const p=pair();if(!p)throw Error('Jumelle Gaming à NEXUS.');
+ if(!navigator.onLine)throw Error('Connexion Internet nécessaire.');
+ if(!window.LinkHubBus)throw Error('Module LINK Hub indisponible.');
+ busy=true;let count=0,errors=0,unchanged=0;
+ try{
+  const jobs=build(),legacy=adapter.state().linkOutbox||[];
+  let history={};try{history=JSON.parse(localStorage.getItem('gaming_link_hub_v1')||'{}')||{}}catch{}
+  for(const job of jobs.slice(0,35)){
+   const fingerprint=await sha(JSON.stringify(job.payload)),previous=history[job.entityId],
+    old=legacy.find(x=>x.pairId===p.id&&x.entityId===job.entityId);
+   if(previous?.fingerprint===fingerprint){unchanged++;continue}
+   const base=old?(old.fingerprint===fingerprint?old.revision:old.revision+1):1;
+   const revision=Math.min(1e6,previous?Math.max(base,previous.revision+1):base);
+   try{
+    const result=await window.LinkHubBus.publish({pair:p,from:'gaming',to:'nexus',
+     contractId:'gaming-nexus',scope:job.scope,entityId:job.entityId,revision,
+     payload:job.payload,schemaVersion:'gaming.proposal.v1'});
+    if(result.accepted){
+     history[job.entityId]={fingerprint,revision,sentAt:new Date().toISOString()};
+     localStorage.setItem('gaming_link_hub_v1',JSON.stringify(history));count++;
+    }
+   }catch(e){errors++;console.warn('Gaming LINK Hub',e?.message||e)}
+  }
+  if(!opts.quiet)adapter.toast(count+' proposition(s) envoyée(s) via LINK'+(unchanged?' · '+unchanged+' inchangée(s)':'')+(errors?' · '+errors+' échec(s)':'')+'.');
+  return {count,errors,unchanged};
+ }finally{busy=false}
+}
+function queue(force=false){
+ if(!auto()||!pair())return;
+ if(typeof navigator!=='undefined'&&navigator.onLine===false)return;
+ const now=Date.now();if(!force&&now-lastHubAttempt<30000)return;
+ clearTimeout(timer);timer=setTimeout(async()=>{
+  timer=null;lastHubAttempt=Date.now();
+  try{await sendHub({quiet:true})}
+  catch(error){
+   console.warn('Gaming LINK Hub différé',error?.message||error);
+   try{await send({quiet:true})}catch(e){console.warn('Lien Gaming ancien relais',e?.message||e)}
+  }
+ },900);
+}
 async function panel(){
  const p=pair();if(!p)return adapter.toast('Connecte Gaming à NEXUS pour synchroniser.');
  const stats=await preview();
@@ -120,7 +159,7 @@ async function panel(){
  window.LinkHubAdapter?.mount?.(document.getElementById('gaming-link-hub-controls'));
  document.getElementById('g7-auto')?.addEventListener('change',e=>{setAuto(e.target.checked);if(e.target.checked)queue();});
  document.getElementById('g7-send')?.addEventListener('click',async e=>{
-  e.currentTarget.disabled=true;try{await send();await panel()}catch(err){alert(err.message);e.currentTarget.disabled=false}
+  e.currentTarget.disabled=true;try{try{await sendHub()}catch{await send()}await panel()}catch(err){alert(err.message);e.currentTarget.disabled=false}
  });
  document.getElementById('g7-refresh')?.addEventListener('click',()=>panel());
 }
@@ -218,7 +257,10 @@ async function auditPanel(){
   }
  });
 }
-function attach(model){adapter=model;window.addEventListener('online',queue);
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)queue()});if(auto())queue()}
-window.GamingNexusSync=Object.freeze({attach,build,preview,send,panel,queue,observe,observation,auditSnapshot,auditPanel});
+function attach(model){adapter=model;
+ if(typeof window.addEventListener==='function')window.addEventListener('online',()=>queue(true));
+ if(typeof window.addEventListener==='function')window.addEventListener('focus',()=>queue(false));
+ if(typeof document.addEventListener==='function')document.addEventListener('visibilitychange',()=>{if(!document.hidden)queue(false)});
+ if(auto())queue(true)}
+window.GamingNexusSync=Object.freeze({attach,build,preview,send,sendHub,panel,queue,observe,observation,auditSnapshot,auditPanel});
 })();
