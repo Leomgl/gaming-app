@@ -240,12 +240,30 @@ function client(){
   return c?.credential??"";
  }});
 }
+// LHI1 codes are explicitly addressed to their destination PWA. Legacy raw
+// one-use tickets remain accepted for compatibility with already open screens.
+function readHubInvitation(raw){
+ const input=String(raw??"").trim(),tag=/^LHI1\.([a-z][a-z0-9-]{2,39})\.([a-f0-9]{64})$/i.exec(input);
+ if(tag){
+  if(tag[1].toLowerCase()!==APP_ID)
+   throw Error("CODE_DESTINÉ_À_"+tag[1].toUpperCase()+"_PAS_À_"+APP_ID.toUpperCase());
+  return tag[2].toLowerCase();
+ }
+ if(/^[a-f0-9]{64}$/i.test(input))return input.toLowerCase();
+ throw Error("CODE_LINK_INVALIDE_OU_INCOMPLET");
+}
 async function enroll(invitation){
  if(!isStandalone())throw Error("OUVRE_L_ICONE_PWA_INSTALLÉE");
- const value=String(invitation??"").trim();
- const result=await enrollHubClient({appId:APP_ID,invitation:value,
-  persistCredential:async secret=>dbPut("secrets","hubCredential",secret)});
- return {appId:APP_ID,registered:result.registered,transportEnabled:result.transportEnabled};
+ const value=readHubInvitation(invitation);
+ try{
+  const result=await enrollHubClient({appId:APP_ID,invitation:value,
+   persistCredential:async secret=>dbPut("secrets","hubCredential",secret)});
+  return {appId:APP_ID,registered:result.registered,transportEnabled:result.transportEnabled};
+ }catch(err){
+  if(err?.message==="INVITATION_REJECTED"||err?.message==="INVITATION_USED")
+   throw Error("INVITATION_REFUSÉE_"+APP_ID.toUpperCase()+"_UTILISE_UN_NOUVEAU_CODE_"+APP_ID.toUpperCase());
+  throw err;
+ }
 }
 async function publishPilot(){
  if(APP_ID!=="gaming")throw Error("SOURCE_NOT_GAMING");
@@ -305,7 +323,7 @@ function mount(el){
  intro.textContent="Inscription une seule fois dans cette PWA. LINK gère les passerelles et autorisations ; aucun ancien lien n’est effacé.";
  const status=document.createElement("p");status.style.fontSize="12px";status.setAttribute("role","status");
  const input=document.createElement("textarea");input.rows=2;
- input.placeholder="Code d’invitation de LINK (64 caractères)";
+ input.placeholder="Invitation LINK réservée à "+(APP_ID==="gaming"?"Gaming":"Nexus")+" (LHI1…)";
  input.setAttribute("aria-label","Invitation temporaire LINK");input.autocomplete="off";
  input.spellcheck=false;input.autocapitalize="off";
  input.style.cssText="display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:9px;border-radius:8px;font-size:13px";
@@ -327,8 +345,13 @@ function mount(el){
   if(busy)return;busy=true;enrollButton.disabled=true;syncButton.disabled=true;
   let feedback="";
   try{await fn();feedback=status.textContent}catch(e){
-   feedback="LINK : "+String(e?.message||"ERREUR").slice(0,90)+
-    " · aucune donnée supprimée.";
+   const reason=String(e?.message||"ERREUR");
+   const current=await credential().catch(()=>null);
+   feedback=reason.startsWith("CODE_DESTINÉ_À_")
+    ?"Cette invitation est destinée à une autre application. Dans LINK, utilise « Inviter "+(APP_ID==="gaming"?"Gaming":"Nexus")+" »."
+    :reason.startsWith("INVITATION_REFUSÉE_")
+    ?(current?"Cette application est déjà inscrite dans LINK. Ne réutilise pas un ancien code.":"Invitation refusée : dans LINK, génère un nouveau code « Inviter "+(APP_ID==="gaming"?"Gaming":"Nexus")+" », pas celui de l’autre application.")
+    :"LINK : "+reason.slice(0,80)+" · aucune donnée supprimée.";
   }finally{
    busy=false;await refresh().catch(()=>{});enrollButton.disabled=false;
    if(feedback)status.textContent=feedback;
